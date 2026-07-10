@@ -39,8 +39,8 @@ const RATING_LABELS = ['MOBILITY', 'ARMOUR', 'IMPACT', 'FIRE CYCLE', 'STABILITY'
 
 const COMBAT_TUNING = [
   { cadence: 4.2, spread: .38, bulletSpeed: 275, damage: .35, windup: .68, pickup: .72, killHeal: .12, aimCone: 2.05 },
-  { cadence: 3.2, spread: .27, bulletSpeed: 330, damage: .7, windup: .5, pickup: .5, killHeal: .08, aimCone: 1.45 },
-  { cadence: 2.5, spread: .18, bulletSpeed: 390, damage: 1, windup: .36, pickup: .36, killHeal: .05, aimCone: 1.05 }
+  { cadence: 3.8, spread: .34, bulletSpeed: 300, damage: .5, windup: .6, pickup: .6, killHeal: .1, aimCone: 1.8 },
+  { cadence: 3.3, spread: .29, bulletSpeed: 335, damage: .7, windup: .5, pickup: .5, killHeal: .08, aimCone: 1.5 }
 ];
 
 const LIGHT_COLORS = {
@@ -77,7 +77,7 @@ const DECKS = [
       [1500, 800, 64, 530], [1770, 570, 290, 64], [1770, 820, 290, 64],
       [650, 590, 170, 64], [650, 820, 170, 64]
     ],
-    droids: [['123', 310, 980], ['247', 670, 210], ['247', 680, 1180], ['420', 1260, 510], ['420', 1260, 870], ['711', 1730, 380], ['711', 1870, 1040]]
+    droids: [['123', 310, 980], ['247', 670, 210], ['247', 680, 1180], ['420', 1260, 510], ['420', 1260, 870], ['711', 1730, 380]]
   },
   {
     id: '03', name: 'COMMAND CROWN', tone: '#30292b', start: [170, 700], lift: [2070, 700], terminal: [1110, 700], emergency: .12, shadow: .035,
@@ -93,7 +93,7 @@ const DECKS = [
       [1830, 80, 64, 430], [1830, 650, 64, 670], [900, 600, 150, 64],
       [1250, 740, 150, 64], [1590, 530, 170, 64], [1590, 850, 170, 64]
     ],
-    droids: [['420', 590, 240], ['420', 590, 1160], ['711', 960, 420], ['711', 960, 980], ['711', 1350, 520], ['711', 1350, 900], ['999', 1700, 700]]
+    droids: [['420', 590, 240], ['420', 590, 1160], ['711', 960, 420], ['711', 960, 980], ['711', 1350, 520], ['999', 1700, 700]]
   }
 ];
 
@@ -101,7 +101,7 @@ const WORLD = { w: 2240, h: 1400, border: 72 };
 const state = {
   mode: 'start', deckIndex: 0, score: 0, time: 0, camera: { x: 0, y: 0 },
   player: null, enemies: [], bullets: [], particles: [], pickups: [], decorations: [],
-  walls: [], terminal: null, lift: null, deckCleared: false, transfer: null, dossierTarget: null,
+  walls: [], terminal: null, lift: null, deckCleared: false, transfer: null, dossierTarget: null, deckBackground: null,
   sound: localStorage.getItem('paradroid-sound') !== 'off', highScore: Number(localStorage.getItem('paradroid-high-score') || 0),
   toastTimer: 0, shake: 0, lastTime: performance.now(), gamepadButtons: [], introTimer: 0,
   combatUnlocked: true, tutorial: null
@@ -150,6 +150,48 @@ function random(min, max) { return min + Math.random() * (max - min); }
 function pad(value, size = 6) { return Math.max(0, Math.floor(value)).toString().padStart(size, '0'); }
 function angleDelta(a, b) { return Math.atan2(Math.sin(b - a), Math.cos(b - a)); }
 
+const renderCache = { lights: new Map(), floorVignette: null, alarmEdge: null };
+
+function getLightSprite(colorName) {
+  if (renderCache.lights.has(colorName)) return renderCache.lights.get(colorName);
+  const size = 640;
+  const sprite = document.createElement('canvas');
+  sprite.width = size; sprite.height = size;
+  const spriteCtx = sprite.getContext('2d');
+  const rgb = LIGHT_COLORS[colorName];
+  const glow = spriteCtx.createRadialGradient(size / 2, size / 2, 4, size / 2, size / 2, size / 2);
+  glow.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},1)`);
+  glow.addColorStop(.3, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},.5)`);
+  glow.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+  spriteCtx.fillStyle = glow; spriteCtx.fillRect(0, 0, size, size);
+  renderCache.lights.set(colorName, sprite);
+  return sprite;
+}
+
+function getFloorVignette() {
+  if (renderCache.floorVignette) return renderCache.floorVignette;
+  const sprite = document.createElement('canvas');
+  sprite.width = WIDTH; sprite.height = HEIGHT;
+  const spriteCtx = sprite.getContext('2d');
+  const grad = spriteCtx.createRadialGradient(WIDTH * .5, HEIGHT * .5, 80, WIDTH * .5, HEIGHT * .5, 700);
+  grad.addColorStop(0, 'rgba(255,226,154,.025)'); grad.addColorStop(1, 'rgba(0,0,0,.34)');
+  spriteCtx.fillStyle = grad; spriteCtx.fillRect(0, 0, WIDTH, HEIGHT);
+  renderCache.floorVignette = sprite;
+  return sprite;
+}
+
+function getAlarmEdge() {
+  if (renderCache.alarmEdge) return renderCache.alarmEdge;
+  const sprite = document.createElement('canvas');
+  sprite.width = WIDTH; sprite.height = HEIGHT;
+  const spriteCtx = sprite.getContext('2d');
+  const edge = spriteCtx.createRadialGradient(WIDTH / 2, HEIGHT / 2, HEIGHT * .25, WIDTH / 2, HEIGHT / 2, WIDTH * .72);
+  edge.addColorStop(.55, 'rgba(145,22,12,0)'); edge.addColorStop(1, 'rgba(145,22,12,1)');
+  spriteCtx.fillStyle = edge; spriteCtx.fillRect(0, 0, WIDTH, HEIGHT);
+  renderCache.alarmEdge = sprite;
+  return sprite;
+}
+
 function makeDroid(kind, x, y, player = false) {
   const spec = DROID_TYPES[kind];
   return {
@@ -180,6 +222,7 @@ function loadDeck(index, fresh = false) {
   state.enemies = deck.droids.map(([kind, x, y]) => makeDroid(kind, x, y));
   state.bullets = []; state.particles = []; state.pickups = [];
   state.decorations = makeDecorations(index);
+  buildDeckBackground();
   state.terminal = { x: deck.terminal[0], y: deck.terminal[1], radius: 42 };
   state.lift = { x: deck.lift[0], y: deck.lift[1], radius: 58 };
   state.deckCleared = false;
@@ -417,7 +460,7 @@ function shoot(droid, enemy, forcedAngle = null) {
 function updateEnemies(dt) {
   const player = state.player;
   const tuning = COMBAT_TUNING[state.deckIndex];
-  const attackerCap = [1, 2, 3][state.deckIndex];
+  const attackerCap = [1, 1, 2][state.deckIndex];
   const activeAttackers = new Set(
     state.combatUnlocked
       ? state.enemies
@@ -856,43 +899,59 @@ function update(dt) {
   updateHud();
 }
 
-function drawFloor() {
+function buildDeckBackground() {
   const deck = DECKS[state.deckIndex];
-  ctx.fillStyle = deck.tone; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  const background = document.createElement('canvas');
+  background.width = WORLD.w; background.height = WORLD.h;
+  const backgroundCtx = background.getContext('2d');
+  backgroundCtx.fillStyle = deck.tone; backgroundCtx.fillRect(0, 0, WORLD.w, WORLD.h);
   const tile = 80;
-  const startX = Math.floor(state.camera.x / tile) * tile;
-  const startY = Math.floor(state.camera.y / tile) * tile;
-  for (let y = startY; y < state.camera.y + HEIGHT + tile; y += tile) {
-    for (let x = startX; x < state.camera.x + WIDTH + tile; x += tile) {
-      const sx = x - state.camera.x, sy = y - state.camera.y;
+  for (let y = 0; y < WORLD.h; y += tile) {
+    for (let x = 0; x < WORLD.w; x += tile) {
       const even = ((x / tile + y / tile) & 1) === 0;
-      ctx.fillStyle = even ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,.025)';
-      ctx.fillRect(sx + 2, sy + 2, tile - 4, tile - 4);
-      ctx.strokeStyle = 'rgba(190,205,187,.09)'; ctx.lineWidth = 1;
-      ctx.strokeRect(sx + .5, sy + .5, tile - 1, tile - 1);
-      ctx.fillStyle = 'rgba(211,187,127,.26)';
-      for (const [bx, by] of [[7,7],[tile-7,7],[7,tile-7],[tile-7,tile-7]]) { ctx.beginPath(); ctx.arc(sx + bx, sy + by, 1.6, 0, TAU); ctx.fill(); }
+      backgroundCtx.fillStyle = even ? 'rgba(255,255,255,.018)' : 'rgba(0,0,0,.025)';
+      backgroundCtx.fillRect(x + 2, y + 2, tile - 4, tile - 4);
+      backgroundCtx.strokeStyle = 'rgba(190,205,187,.09)'; backgroundCtx.lineWidth = 1;
+      backgroundCtx.strokeRect(x + .5, y + .5, tile - 1, tile - 1);
+      backgroundCtx.fillStyle = 'rgba(211,187,127,.26)';
+      for (const [bx, by] of [[7,7],[tile-7,7],[7,tile-7],[tile-7,tile-7]]) { backgroundCtx.beginPath(); backgroundCtx.arc(x + bx, y + by, 1.6, 0, TAU); backgroundCtx.fill(); }
     }
   }
-  const grad = ctx.createRadialGradient(WIDTH * .5, HEIGHT * .5, 80, WIDTH * .5, HEIGHT * .5, 700);
-  grad.addColorStop(0, 'rgba(255,226,154,.025)'); grad.addColorStop(1, 'rgba(0,0,0,.34)');
-  ctx.fillStyle = grad; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  state.decorations.forEach((decor) => paintDecoration(backgroundCtx, decor.x, decor.y, decor));
+  const border = WORLD.border;
+  [[0,0,WORLD.w,border],[0,WORLD.h-border,WORLD.w,border],[0,0,border,WORLD.h],[WORLD.w-border,0,border,WORLD.h]]
+    .forEach(([x,y,w,h]) => paintWall(backgroundCtx, x, y, w, h));
+  state.walls.forEach((wall) => paintWall(backgroundCtx, wall.x, wall.y, wall.w, wall.h));
+  state.deckBackground = background;
+}
+
+function drawDeckBackground() {
+  if (!state.deckBackground) buildDeckBackground();
+  ctx.drawImage(state.deckBackground, state.camera.x, state.camera.y, WIDTH, HEIGHT, 0, 0, WIDTH, HEIGHT);
+  ctx.drawImage(getFloorVignette(), 0, 0);
 }
 
 function drawWall(wall) {
   const x = wall.x - state.camera.x, y = wall.y - state.camera.y;
   if (x > WIDTH + 20 || y > HEIGHT + 20 || x + wall.w < -20 || y + wall.h < -20) return;
-  ctx.save();
-  ctx.fillStyle = 'rgba(0,0,0,.34)'; ctx.fillRect(x + 12, y + 15, wall.w, wall.h);
-  const grad = ctx.createLinearGradient(x, y, x + Math.min(wall.w, 80), y + Math.min(wall.h, 80));
-  grad.addColorStop(0, '#6b7469'); grad.addColorStop(.18, '#313b34'); grad.addColorStop(.72, '#1b241e'); grad.addColorStop(1, '#0e1511');
-  ctx.fillStyle = grad; ctx.fillRect(x, y, wall.w, wall.h);
-  ctx.strokeStyle = '#8c8c73'; ctx.lineWidth = 2; ctx.strokeRect(x + 2, y + 2, wall.w - 4, wall.h - 4);
-  ctx.strokeStyle = 'rgba(0,0,0,.55)'; ctx.strokeRect(x + 9, y + 9, wall.w - 18, wall.h - 18);
-  ctx.strokeStyle = 'rgba(209,194,148,.25)'; ctx.setLineDash([16, 9]); ctx.strokeRect(x + 14, y + 14, wall.w - 28, wall.h - 28); ctx.setLineDash([]);
-  ctx.fillStyle = '#b08a49';
-  for (const [bx, by] of [[10,10],[wall.w-10,10],[10,wall.h-10],[wall.w-10,wall.h-10]]) { ctx.beginPath(); ctx.arc(x + bx, y + by, 3.5, 0, TAU); ctx.fill(); ctx.fillStyle = '#242a24'; ctx.fillRect(x + bx - 2, y + by - .5, 4, 1); ctx.fillStyle = '#b08a49'; }
-  ctx.restore();
+  paintWall(ctx, x, y, wall.w, wall.h);
+}
+
+function paintWall(targetCtx, x, y, width, height) {
+  targetCtx.save();
+  targetCtx.fillStyle = 'rgba(0,0,0,.34)'; targetCtx.fillRect(x + 12, y + 15, width, height);
+  targetCtx.fillStyle = '#222c25'; targetCtx.fillRect(x, y, width, height);
+  targetCtx.fillStyle = 'rgba(151,160,143,.32)'; targetCtx.fillRect(x, y, width, 7); targetCtx.fillRect(x, y, 7, height);
+  targetCtx.fillStyle = 'rgba(5,9,6,.42)'; targetCtx.fillRect(x, y + height - 8, width, 8); targetCtx.fillRect(x + width - 8, y, 8, height);
+  targetCtx.strokeStyle = '#8c8c73'; targetCtx.lineWidth = 2; targetCtx.strokeRect(x + 2, y + 2, width - 4, height - 4);
+  targetCtx.strokeStyle = 'rgba(0,0,0,.55)'; targetCtx.strokeRect(x + 9, y + 9, width - 18, height - 18);
+  targetCtx.strokeStyle = 'rgba(209,194,148,.25)'; targetCtx.setLineDash([16, 9]); targetCtx.strokeRect(x + 14, y + 14, width - 28, height - 28); targetCtx.setLineDash([]);
+  targetCtx.fillStyle = '#b08a49';
+  for (const [bx, by] of [[10,10],[width-10,10],[10,height-10],[width-10,height-10]]) {
+    targetCtx.beginPath(); targetCtx.arc(x + bx, y + by, 3.5, 0, TAU); targetCtx.fill();
+    targetCtx.fillStyle = '#242a24'; targetCtx.fillRect(x + bx - 2, y + by - .5, 4, 1); targetCtx.fillStyle = '#b08a49';
+  }
+  targetCtx.restore();
 }
 
 function drawOuterWalls() {
@@ -903,22 +962,26 @@ function drawOuterWalls() {
 function drawDecoration(decor) {
   const x = decor.x - state.camera.x, y = decor.y - state.camera.y;
   if (x < -50 || y < -50 || x > WIDTH + 50 || y > HEIGHT + 50) return;
-  ctx.save(); ctx.translate(x, y); ctx.rotate(decor.rotation); ctx.globalAlpha = .48;
+  paintDecoration(ctx, x, y, decor);
+}
+
+function paintDecoration(targetCtx, x, y, decor) {
+  targetCtx.save(); targetCtx.translate(x, y); targetCtx.rotate(decor.rotation); targetCtx.globalAlpha = .48;
   if (decor.type === 0) {
-    ctx.fillStyle = '#1c241f'; ctx.fillRect(-25, -14, 50, 28); ctx.strokeStyle = '#758075'; ctx.strokeRect(-22, -11, 44, 22);
-    ctx.fillStyle = '#ae874a'; for (let i = -14; i <= 14; i += 14) ctx.fillRect(i, -7, 5, 14);
+    targetCtx.fillStyle = '#1c241f'; targetCtx.fillRect(-25, -14, 50, 28); targetCtx.strokeStyle = '#758075'; targetCtx.strokeRect(-22, -11, 44, 22);
+    targetCtx.fillStyle = '#ae874a'; for (let i = -14; i <= 14; i += 14) targetCtx.fillRect(i, -7, 5, 14);
   } else if (decor.type === 1) {
-    ctx.strokeStyle = '#151b17'; ctx.lineWidth = 9; ctx.beginPath(); ctx.arc(0, 0, 23, 0, TAU); ctx.stroke();
-    ctx.strokeStyle = '#807757'; ctx.lineWidth = 3; ctx.stroke();
-    ctx.fillStyle = '#131915'; ctx.beginPath(); ctx.arc(0, 0, 8, 0, TAU); ctx.fill();
+    targetCtx.strokeStyle = '#151b17'; targetCtx.lineWidth = 9; targetCtx.beginPath(); targetCtx.arc(0, 0, 23, 0, TAU); targetCtx.stroke();
+    targetCtx.strokeStyle = '#807757'; targetCtx.lineWidth = 3; targetCtx.stroke();
+    targetCtx.fillStyle = '#131915'; targetCtx.beginPath(); targetCtx.arc(0, 0, 8, 0, TAU); targetCtx.fill();
   } else if (decor.type === 2) {
-    ctx.fillStyle = '#1a221c'; ctx.fillRect(-30, -6, 60, 12); ctx.fillStyle = '#8d7041';
-    for (let i = -26; i < 30; i += 12) ctx.fillRect(i, -4, 6, 8);
+    targetCtx.fillStyle = '#1a221c'; targetCtx.fillRect(-30, -6, 60, 12); targetCtx.fillStyle = '#8d7041';
+    for (let i = -26; i < 30; i += 12) targetCtx.fillRect(i, -4, 6, 8);
   } else {
-    ctx.strokeStyle = '#7a4d39'; ctx.lineWidth = 4; ctx.beginPath(); ctx.moveTo(-25, 13); ctx.bezierCurveTo(-10, -25, 10, 26, 25, -12); ctx.stroke();
-    ctx.strokeStyle = '#2d3830'; ctx.lineWidth = 7; ctx.stroke();
+    targetCtx.strokeStyle = '#7a4d39'; targetCtx.lineWidth = 4; targetCtx.beginPath(); targetCtx.moveTo(-25, 13); targetCtx.bezierCurveTo(-10, -25, 10, 26, 25, -12); targetCtx.stroke();
+    targetCtx.strokeStyle = '#2d3830'; targetCtx.lineWidth = 7; targetCtx.stroke();
   }
-  ctx.restore();
+  targetCtx.restore();
 }
 
 function drawTerminal() {
@@ -959,11 +1022,9 @@ function drawEmergencyLighting() {
     const dropout = deck.emergency > .65 && Math.sin(state.time * 2.3 + phase) + Math.sin(state.time * 7.1 + phase) > 1.42 ? .24 : 1;
     const intensity = wave * dropout * (.62 + deck.emergency * .38);
     const radius = 225 + deck.emergency * 75;
-    const glow = ctx.createRadialGradient(x, y, 4, x, y, radius);
-    glow.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.28 * intensity})`);
-    glow.addColorStop(.3, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.14 * intensity})`);
-    glow.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
-    ctx.fillStyle = glow; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+    ctx.globalAlpha = .28 * intensity;
+    ctx.drawImage(getLightSprite(colorName), x - radius, y - radius, radius * 2, radius * 2);
+    ctx.globalAlpha = 1;
 
     if (deck.emergency > .3) {
       const sweep = state.time * (colorName === 'red' ? 1.45 : .62) + phase;
@@ -991,9 +1052,9 @@ function drawEmergencyLighting() {
 
   if (deck.emergency > .6) {
     const alarm = .5 + Math.sin(state.time * 2.2) * .5;
-    const edge = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, HEIGHT * .25, WIDTH / 2, HEIGHT / 2, WIDTH * .72);
-    edge.addColorStop(.55, 'rgba(120,20,10,0)'); edge.addColorStop(1, `rgba(145,22,12,${.035 + alarm * .025})`);
-    ctx.fillStyle = edge; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+    ctx.globalAlpha = .035 + alarm * .025;
+    ctx.drawImage(getAlarmEdge(), 0, 0);
+    ctx.globalAlpha = 1;
   }
 }
 
@@ -1160,9 +1221,7 @@ function renderRadar() {
 function render() {
   ctx.save();
   if (state.shake > 0 && state.mode === 'playing') ctx.translate(random(-state.shake, state.shake), random(-state.shake, state.shake));
-  drawFloor();
-  state.decorations.forEach(drawDecoration);
-  drawOuterWalls(); state.walls.forEach(drawWall);
+  drawDeckBackground();
   drawLift(); drawTerminal(); drawEmergencyLighting(); drawPickups();
   [...state.enemies, state.player].filter(Boolean).sort((a,b) => a.y - b.y).forEach((d) => drawDroid(d, d === state.player));
   drawBulletsAndParticles();
@@ -1214,11 +1273,34 @@ function renderTransfer() {
   if (tr.finished) { const won = pCount > eCount; tx.fillStyle = 'rgba(8,12,9,.86)'; tx.fillRect(0,0,w,h); tx.fillStyle = won ? '#9ee0af' : '#ef655e'; tx.font = '700 36px monospace'; tx.fillText(won ? 'TRANSFER ACCEPTED' : 'TRANSFER REJECTED', w/2,h/2); }
 }
 
+const ACTIVE_RENDER_MODES = new Set(['playing', 'transfer']);
+const FRAME_INTERVAL = 1000 / 30;
+let lastRenderedMode = null;
+
 function frame(now) {
-  const dt = clamp((now - state.lastTime) / 1000, 0, .033);
+  const active = ACTIVE_RENDER_MODES.has(state.mode);
+  if (!active) {
+    state.lastTime = now;
+    if (lastRenderedMode !== state.mode) {
+      render();
+      lastRenderedMode = state.mode;
+    }
+    pressed.clear();
+    setTimeout(() => requestAnimationFrame(frame), 100);
+    return;
+  }
+
+  const elapsed = now - state.lastTime;
+  if (elapsed < FRAME_INTERVAL - 1) {
+    requestAnimationFrame(frame);
+    return;
+  }
+
+  const dt = clamp(elapsed / 1000, 0, .05);
   state.lastTime = now;
   update(dt);
   render();
+  lastRenderedMode = state.mode;
   pressed.clear();
   requestAnimationFrame(frame);
 }
