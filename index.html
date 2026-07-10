@@ -118,6 +118,48 @@
             </div>
           </section>
 
+          <section id="dossier" class="overlay dossier" aria-modal="true" role="dialog" aria-labelledby="dossierTitle">
+            <div class="dossier-bezel">
+              <div class="dossier-case-line">
+                <span>ROVING SYSTEMS // DROID DATA LIBRARY</span>
+                <strong>LINK PROBE ACTIVE</strong>
+              </div>
+              <div class="dossier-screen">
+                <div class="terminal-scanlines" aria-hidden="true"></div>
+                <header class="dossier-titlebar">
+                  <div><span>TRANSFER INTERCEPT</span><h2 id="dossierTitle">DROID RECOGNITION</h2></div>
+                  <p>COMPARE BEFORE COMMITTING</p>
+                </header>
+                <div class="dossier-identities">
+                  <article class="dossier-identity current-droid">
+                    <span>CURRENT HOST</span>
+                    <div><strong id="dossierCurrentId">001</strong><h3 id="dossierCurrentName">INFLUENCE</h3></div>
+                    <p id="dossierCurrentRole">INFILTRATOR</p>
+                    <small id="dossierCurrentWeapon">TWIN NEEDLE LASER</small>
+                  </article>
+                  <div class="dossier-versus">VS</div>
+                  <article class="dossier-identity target-droid">
+                    <span>TRANSFER TARGET</span>
+                    <div><strong id="dossierTargetId">123</strong><h3 id="dossierTargetName">SCOUT</h3></div>
+                    <p id="dossierTargetRole">RECON CHASSIS</p>
+                    <small id="dossierTargetWeapon">PULSE REPEATER</small>
+                  </article>
+                </div>
+                <div id="dossierStats" class="dossier-stats" aria-label="Droid capability comparison"></div>
+                <div class="dossier-verdicts">
+                  <article><span>TARGET ADVANTAGE</span><strong id="dossierStrength">Fastest chassis; excellent firing cycle.</strong></article>
+                  <article><span>TARGET LIABILITY</span><strong id="dossierWeakness">Fragile with very low shot impact.</strong></article>
+                </div>
+                <footer class="dossier-actions">
+                  <p><kbd>ESC</kbd> ABORT LINK</p>
+                  <p class="dossier-recommendation" id="dossierRecommendation">NET CHANGE // MOBILITY +2</p>
+                  <p><kbd>E</kbd> BEGIN TRANSFER</p>
+                </footer>
+              </div>
+              <div class="dossier-case-badge">DD<span>64</span></div>
+            </div>
+          </section>
+
           <section id="transfer" class="overlay transfer" aria-modal="true" role="dialog" aria-labelledby="transferTitle">
             <div class="transfer-panel">
               <div class="transfer-header">

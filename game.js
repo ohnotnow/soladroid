@@ -13,7 +13,10 @@ const ui = Object.fromEntries(
     'transferPlayer', 'transferEnemy', 'pauseScreen', 'resumeButton', 'soundButton',
     'endScreen', 'endEyebrow', 'endTitle', 'endMessage', 'endScore', 'endHighScore',
     'restartButton', 'radar', 'radarStatus', 'tutorial', 'tutorialStep', 'tutorialTitle',
-    'tutorialBody', 'tutorialProgress'
+    'tutorialBody', 'tutorialProgress', 'dossier', 'dossierCurrentId', 'dossierCurrentName',
+    'dossierCurrentRole', 'dossierCurrentWeapon', 'dossierTargetId', 'dossierTargetName',
+    'dossierTargetRole', 'dossierTargetWeapon', 'dossierStats', 'dossierStrength',
+    'dossierWeakness', 'dossierRecommendation'
   ].map((id) => [id, document.querySelector(`#${id}`)])
 );
 
@@ -24,13 +27,15 @@ const keys = new Set();
 const pressed = new Set();
 
 const DROID_TYPES = {
-  '001': { name: 'INFLUENCE', maxHp: 66, speed: 218, fireRate: .22, damage: 12, radius: 22, accent: '#f4d66f', rank: 1, decay: .06 },
-  '123': { name: 'SCOUT', maxHp: 68, speed: 205, fireRate: .27, damage: 8, radius: 25, accent: '#74d4c3', rank: 2, decay: .08 },
-  '247': { name: 'ENGINEER', maxHp: 102, speed: 166, fireRate: .48, damage: 13, radius: 29, accent: '#d49b59', rank: 3, decay: .11 },
-  '420': { name: 'SECURITY', maxHp: 142, speed: 145, fireRate: .42, damage: 15, radius: 31, accent: '#e76e58', rank: 4, decay: .14 },
-  '711': { name: 'BATTLE', maxHp: 205, speed: 122, fireRate: .58, damage: 22, radius: 35, accent: '#b4ce72', rank: 6, decay: .18 },
-  '999': { name: 'COMMAND', maxHp: 290, speed: 105, fireRate: .52, damage: 29, radius: 42, accent: '#e44f64', rank: 8, decay: .22 }
+  '001': { name: 'INFLUENCE', role: 'INFILTRATOR', weapon: 'TWIN NEEDLE LASER', maxHp: 66, speed: 238, fireRate: .22, damage: 12, radius: 22, accent: '#f4d66f', rank: 1, decay: .06, ratings: [8, 2, 3, 7, 10], strength: 'Agile and exceptionally stable.', weakness: 'Almost no protection under sustained fire.' },
+  '123': { name: 'SCOUT', role: 'RECON CHASSIS', weapon: 'PULSE REPEATER', maxHp: 58, speed: 270, fireRate: .18, damage: 7, radius: 25, accent: '#74d4c3', rank: 2, decay: .07, ratings: [10, 1, 1, 10, 9], strength: 'Fastest chassis; excellent firing cycle.', weakness: 'Fragile with very low shot impact.' },
+  '247': { name: 'ENGINEER', role: 'HEAVY UTILITY', weapon: 'INDUSTRIAL CUTTER', maxHp: 112, speed: 148, fireRate: .72, damage: 24, radius: 29, accent: '#d49b59', rank: 3, decay: .1, ratings: [3, 5, 8, 2, 8], strength: 'Heavy cutter hits hard; solid shell.', weakness: 'Slow movement and a long recharge cycle.' },
+  '420': { name: 'SECURITY', role: 'DECK ENFORCER', weapon: 'SECURITY LASER', maxHp: 142, speed: 172, fireRate: .42, damage: 16, radius: 31, accent: '#e76e58', rank: 4, decay: .13, ratings: [6, 7, 6, 6, 7], strength: 'Reliable all-round combat platform.', weakness: 'Competent at everything; exceptional at nothing.' },
+  '711': { name: 'BATTLE', role: 'RAPID ASSAULT', weapon: 'ARC DISRUPTOR', maxHp: 188, speed: 225, fireRate: .16, damage: 8, radius: 35, accent: '#b4ce72', rank: 6, decay: .18, ratings: [9, 8, 2, 10, 4], strength: 'Fast, armoured, and ferocious at close range.', weakness: 'Low impact per shot; control link degrades quickly.' },
+  '999': { name: 'COMMAND', role: 'SIEGE CYBORG', weapon: 'COMMAND CANNON', maxHp: 290, speed: 122, fireRate: .65, damage: 32, radius: 42, accent: '#e44f64', rank: 8, decay: .26, ratings: [2, 10, 10, 3, 1], strength: 'Maximum armour and devastating firepower.', weakness: 'Very slow and catastrophically unstable.' }
 };
+
+const RATING_LABELS = ['MOBILITY', 'ARMOUR', 'IMPACT', 'FIRE CYCLE', 'STABILITY'];
 
 const COMBAT_TUNING = [
   { cadence: 4.2, spread: .38, bulletSpeed: 275, damage: .35, windup: .68, pickup: .72, killHeal: .12, aimCone: 2.05 },
@@ -96,7 +101,7 @@ const WORLD = { w: 2240, h: 1400, border: 72 };
 const state = {
   mode: 'start', deckIndex: 0, score: 0, time: 0, camera: { x: 0, y: 0 },
   player: null, enemies: [], bullets: [], particles: [], pickups: [], decorations: [],
-  walls: [], terminal: null, lift: null, deckCleared: false, transfer: null,
+  walls: [], terminal: null, lift: null, deckCleared: false, transfer: null, dossierTarget: null,
   sound: localStorage.getItem('paradroid-sound') !== 'off', highScore: Number(localStorage.getItem('paradroid-high-score') || 0),
   toastTimer: 0, shake: 0, lastTime: performance.now(), gamepadButtons: [], introTimer: 0,
   combatUnlocked: true, tutorial: null
@@ -105,7 +110,7 @@ const state = {
 const TUTORIAL_STEPS = [
   { title: 'GET YOUR BEARINGS', body: 'Move with <kbd>WASD</kbd> or the arrow keys. Your droid fires in the last direction it travelled.' },
   { title: 'TEST THE WEAPON', body: 'Press <kbd>SPACE</kbd> to fire. Aim roughly toward a target; guidance will fine-tune the shot. A red targeting line warns when a hostile is about to fire.' },
-  { title: 'TAKE A BETTER BODY', body: 'Approach a droid and press <kbd>E</kbd>. Win the circuit duel to possess its stronger chassis.' },
+  { title: 'TAKE A BETTER BODY', body: 'Approach a droid and press <kbd>E</kbd>. Review its recognition dossier, then press <kbd>E</kbd> again to attempt transfer.' },
   { title: 'SURVIVE. ADAPT.', body: 'Good. The radar marks hostiles, the deck terminal, and the lift. Clear the deck, then reach the lift.' }
 ];
 
@@ -210,7 +215,7 @@ function startGame() {
 }
 
 function hideAllOverlays() {
-  [ui.startScreen, ui.terminal, ui.transfer, ui.pauseScreen, ui.endScreen].forEach((el) => el.classList.remove('is-visible'));
+  [ui.startScreen, ui.terminal, ui.dossier, ui.transfer, ui.pauseScreen, ui.endScreen].forEach((el) => el.classList.remove('is-visible'));
 }
 
 function updateTutorialUi() {
@@ -549,7 +554,7 @@ function updateParticles(dt) {
 function getNearbyInteractable() {
   const player = state.player;
   const target = state.enemies.filter((enemy) => distance(enemy, player) < player.radius + enemy.radius + 48).sort((a, b) => distance(a, player) - distance(b, player))[0];
-  if (target) return { type: 'droid', value: target, label: `<kbd>E</kbd> INITIATE TRANSFER // ${target.kind}` };
+  if (target) return { type: 'droid', value: target, label: `<kbd>E</kbd> INSPECT / TRANSFER // ${target.kind}` };
   if (distance(player, state.terminal) < 105) return { type: 'terminal', value: state.terminal, label: '<kbd>E</kbd> ACCESS DECK TERMINAL' };
   if (distance(player, state.lift) < 120) return { type: 'lift', value: state.lift, label: state.deckCleared ? '<kbd>E</kbd> ENTER LIFT' : 'LIFT LOCKED // HOSTILES REMAIN' };
   return null;
@@ -558,12 +563,73 @@ function getNearbyInteractable() {
 function interact() {
   const nearby = getNearbyInteractable();
   if (!nearby) return;
-  if (nearby.type === 'droid') startTransfer(nearby.value);
+  if (nearby.type === 'droid') openDossier(nearby.value);
   if (nearby.type === 'terminal') openTerminal();
   if (nearby.type === 'lift') {
     if (!state.deckCleared) { audio.fail(); toast('ACCESS DENIED // PURGE HOSTILES'); return; }
     if (state.deckIndex === DECKS.length - 1) endGame(true);
     else { state.score += 500; loadDeck(state.deckIndex + 1); }
+  }
+}
+
+function openDossier(target) {
+  if (!state.enemies.includes(target)) return;
+  const current = DROID_TYPES[state.player.kind];
+  const candidate = DROID_TYPES[target.kind];
+  state.mode = 'dossier';
+  state.dossierTarget = target;
+
+  ui.dossierCurrentId.textContent = state.player.kind;
+  ui.dossierCurrentName.textContent = current.name;
+  ui.dossierCurrentRole.textContent = current.role;
+  ui.dossierCurrentWeapon.textContent = current.weapon;
+  ui.dossierTargetId.textContent = target.kind;
+  ui.dossierTargetName.textContent = candidate.name;
+  ui.dossierTargetRole.textContent = candidate.role;
+  ui.dossierTargetWeapon.textContent = candidate.weapon;
+  ui.dossierStrength.textContent = candidate.strength;
+  ui.dossierWeakness.textContent = candidate.weakness;
+  ui.dossier.querySelector('.dossier-screen').style.setProperty('--target-accent', candidate.accent);
+
+  ui.dossierStats.innerHTML = RATING_LABELS.map((label, index) => {
+    const currentValue = current.ratings[index];
+    const targetValue = candidate.ratings[index];
+    const delta = targetValue - currentValue;
+    const deltaLabel = delta > 0 ? `+${delta}` : delta < 0 ? `${delta}` : '=';
+    return `<div class="dossier-stat">
+      <div class="dossier-rating current"><b>${currentValue}</b><i><span style="width:${currentValue * 10}%"></span></i></div>
+      <span>${label}<em>${deltaLabel}</em></span>
+      <div class="dossier-rating target"><b>${targetValue}</b><i><span style="width:${targetValue * 10}%"></span></i></div>
+    </div>`;
+  }).join('');
+
+  const gains = RATING_LABELS.filter((_, index) => candidate.ratings[index] - current.ratings[index] >= 2);
+  const losses = RATING_LABELS.filter((_, index) => candidate.ratings[index] - current.ratings[index] <= -2);
+  ui.dossierRecommendation.textContent = gains.length
+    ? `GAIN // ${gains.join(' + ')}${losses.length ? `  ·  TRADE // ${losses.join(' + ')}` : ''}`
+    : `SIDEGRADE // ${losses.length ? `LOWER ${losses.join(' + ')}` : 'SIMILAR CAPABILITY'}`;
+
+  ui.dossier.classList.add('is-visible');
+  audio.tone(165, .1, 'square', .025, 110);
+}
+
+function closeDossier() {
+  if (state.mode !== 'dossier') return;
+  state.mode = 'playing';
+  state.dossierTarget = null;
+  ui.dossier.classList.remove('is-visible');
+  state.lastTime = performance.now();
+}
+
+function confirmDossier() {
+  if (state.mode !== 'dossier') return;
+  const target = state.dossierTarget;
+  state.dossierTarget = null;
+  ui.dossier.classList.remove('is-visible');
+  if (target && state.enemies.includes(target)) startTransfer(target);
+  else {
+    state.mode = 'playing';
+    toast('LINK TARGET LOST', 1.2);
   }
 }
 
@@ -1164,6 +1230,8 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'Enter' && state.mode === 'start') startGame();
   else if (event.code === 'Enter' && state.mode === 'end') startGame();
   else if (event.code === 'KeyE' && state.mode === 'terminal') closeTerminal();
+  else if (event.code === 'KeyE' && state.mode === 'dossier') confirmDossier();
+  else if (event.code === 'Escape' && state.mode === 'dossier') closeDossier();
   else if (event.code === 'KeyT' && state.mode === 'playing' && state.tutorial?.active) dismissTutorial();
   else if ((event.code === 'KeyP' || event.code === 'Escape') && ['playing','paused'].includes(state.mode)) pauseGame();
 });
