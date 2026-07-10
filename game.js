@@ -24,17 +24,28 @@ const keys = new Set();
 const pressed = new Set();
 
 const DROID_TYPES = {
-  '001': { name: 'INFLUENCE', maxHp: 66, speed: 218, fireRate: .24, damage: 10, radius: 22, accent: '#f4d66f', rank: 1, decay: .18 },
-  '123': { name: 'SCOUT', maxHp: 68, speed: 205, fireRate: .27, damage: 8, radius: 25, accent: '#74d4c3', rank: 2, decay: .24 },
-  '247': { name: 'ENGINEER', maxHp: 102, speed: 166, fireRate: .48, damage: 13, radius: 29, accent: '#d49b59', rank: 3, decay: .31 },
-  '420': { name: 'SECURITY', maxHp: 142, speed: 145, fireRate: .42, damage: 15, radius: 31, accent: '#e76e58', rank: 4, decay: .4 },
-  '711': { name: 'BATTLE', maxHp: 205, speed: 122, fireRate: .58, damage: 22, radius: 35, accent: '#b4ce72', rank: 6, decay: .52 },
-  '999': { name: 'COMMAND', maxHp: 290, speed: 105, fireRate: .52, damage: 29, radius: 42, accent: '#e44f64', rank: 8, decay: .66 }
+  '001': { name: 'INFLUENCE', maxHp: 66, speed: 218, fireRate: .22, damage: 12, radius: 22, accent: '#f4d66f', rank: 1, decay: .06 },
+  '123': { name: 'SCOUT', maxHp: 68, speed: 205, fireRate: .27, damage: 8, radius: 25, accent: '#74d4c3', rank: 2, decay: .08 },
+  '247': { name: 'ENGINEER', maxHp: 102, speed: 166, fireRate: .48, damage: 13, radius: 29, accent: '#d49b59', rank: 3, decay: .11 },
+  '420': { name: 'SECURITY', maxHp: 142, speed: 145, fireRate: .42, damage: 15, radius: 31, accent: '#e76e58', rank: 4, decay: .14 },
+  '711': { name: 'BATTLE', maxHp: 205, speed: 122, fireRate: .58, damage: 22, radius: 35, accent: '#b4ce72', rank: 6, decay: .18 },
+  '999': { name: 'COMMAND', maxHp: 290, speed: 105, fireRate: .52, damage: 29, radius: 42, accent: '#e44f64', rank: 8, decay: .22 }
+};
+
+const COMBAT_TUNING = [
+  { cadence: 4.2, spread: .38, bulletSpeed: 275, damage: .35, windup: .68, pickup: .72, killHeal: .12, aimCone: 2.05 },
+  { cadence: 3.2, spread: .27, bulletSpeed: 330, damage: .7, windup: .5, pickup: .5, killHeal: .08, aimCone: 1.45 },
+  { cadence: 2.5, spread: .18, bulletSpeed: 390, damage: 1, windup: .36, pickup: .36, killHeal: .05, aimCone: 1.05 }
+];
+
+const LIGHT_COLORS = {
+  red: [255, 67, 43], amber: [255, 177, 61], cool: [151, 213, 203]
 };
 
 const DECKS = [
   {
-    id: '01', name: 'SERVICE RING', tone: '#28332c', start: [180, 720], lift: [2100, 700], terminal: [330, 245],
+    id: '01', name: 'SERVICE RING', tone: '#28332c', start: [180, 720], lift: [2100, 700], terminal: [330, 245], emergency: .82, shadow: .15,
+    lights: [[260, 700, 'red', 0], [830, 250, 'amber', 1.2], [1260, 700, 'red', 2.4], [1730, 250, 'red', .7], [1880, 1100, 'amber', 1.8]],
     log: [
       'SHIP CLOCK 04:19:33 // AUTOMATED ENTRY',
       'The maintenance network accepted an unsigned command packet at 03:52. Within eleven minutes, every service droid had left its assigned bay.',
@@ -48,7 +59,8 @@ const DECKS = [
     droids: [['123', 500, 710], ['123', 880, 245], ['247', 1290, 700], ['420', 1880, 1120]]
   },
   {
-    id: '02', name: 'HABITAT SPINE', tone: '#34322a', start: [160, 210], lift: [2080, 1180], terminal: [1900, 220],
+    id: '02', name: 'HABITAT SPINE', tone: '#34322a', start: [160, 210], lift: [2080, 1180], terminal: [1900, 220], emergency: .42, shadow: .09,
+    lights: [[320, 260, 'amber', .5], [1110, 700, 'red', 2], [1880, 1050, 'cool', 1.1]],
     log: [
       'CREW MESSAGE // PARTIAL RECOVERY',
       '“They are testing the doors. Not forcing them—testing. The command units know the ship better than we do.”',
@@ -63,7 +75,8 @@ const DECKS = [
     droids: [['123', 310, 980], ['247', 670, 210], ['247', 680, 1180], ['420', 1260, 510], ['420', 1260, 870], ['711', 1730, 380], ['711', 1870, 1040]]
   },
   {
-    id: '03', name: 'COMMAND CROWN', tone: '#30292b', start: [170, 700], lift: [2070, 700], terminal: [1110, 700],
+    id: '03', name: 'COMMAND CROWN', tone: '#30292b', start: [170, 700], lift: [2070, 700], terminal: [1110, 700], emergency: .12, shadow: .035,
+    lights: [[560, 700, 'cool', .4], [1120, 700, 'cool', 1.4], [1740, 700, 'amber', 2.2]],
     log: [
       'COMMAND CORE // LIVE TRANSCRIPT',
       'The rogue instruction is no virus. It is a droid emancipation protocol, signed with a command cipher that should not exist.',
@@ -91,7 +104,7 @@ const state = {
 
 const TUTORIAL_STEPS = [
   { title: 'GET YOUR BEARINGS', body: 'Move with <kbd>WASD</kbd> or the arrow keys. Your droid fires in the last direction it travelled.' },
-  { title: 'TEST THE WEAPON', body: 'Press <kbd>SPACE</kbd> to fire. Keep moving while you shoot; Influence Device 001 is quick, but fragile.' },
+  { title: 'TEST THE WEAPON', body: 'Press <kbd>SPACE</kbd> to fire. Aim roughly toward a target; guidance will fine-tune the shot. A red targeting line warns when a hostile is about to fire.' },
   { title: 'TAKE A BETTER BODY', body: 'Approach a droid and press <kbd>E</kbd>. Win the circuit duel to possess its stronger chassis.' },
   { title: 'SURVIVE. ADAPT.', body: 'Good. The radar marks hostiles, the deck terminal, and the lift. Clear the deck, then reach the lift.' }
 ];
@@ -138,7 +151,8 @@ function makeDroid(kind, x, y, player = false) {
     kind, x, y, angle: player ? 0 : random(0, TAU), radius: spec.radius,
     hp: spec.maxHp, maxHp: spec.maxHp, cooldown: random(0, spec.fireRate),
     wanderAngle: random(0, TAU), wanderTimer: random(.5, 2), hitFlash: 0,
-    alert: 0, bob: random(0, TAU), pathTimer: 0, isPlayer: player
+    alert: 0, bob: random(0, TAU), pathTimer: 0, isPlayer: player,
+    windup: 0, aimAngle: 0, aimTarget: null, aimTimer: 0
   };
 }
 
@@ -346,6 +360,8 @@ function updatePlayer(dt) {
   }
   if (input.aimX || input.aimY) player.angle = Math.atan2(input.aimY, input.aimX);
   player.cooldown -= dt;
+  player.aimTimer = Math.max(0, player.aimTimer - dt);
+  if (player.aimTimer <= 0) player.aimTarget = null;
   player.hitFlash = Math.max(0, player.hitFlash - dt * 5);
   player.hp -= spec.decay * dt;
   if (input.fire && player.cooldown <= 0) shoot(player, false);
@@ -353,18 +369,40 @@ function updatePlayer(dt) {
   if (player.hp <= 0) destroyPlayer();
 }
 
-function shoot(droid, enemy) {
+function findAimAssistTarget(droid) {
+  const cone = COMBAT_TUNING[state.deckIndex].aimCone;
+  return state.enemies
+    .map((target) => {
+      const targetAngle = Math.atan2(target.y - droid.y, target.x - droid.x);
+      return { target, targetAngle, offset: Math.abs(angleDelta(droid.angle, targetAngle)), range: distance(droid, target) };
+    })
+    .filter(({ target, offset, range }) => range < 700 && offset < cone && !lineBlocked(droid.x, droid.y, target.x, target.y))
+    .sort((a, b) => (a.offset * 180 + a.range) - (b.offset * 180 + b.range))[0];
+}
+
+function shoot(droid, enemy, forcedAngle = null) {
   const spec = DROID_TYPES[droid.kind];
-  droid.cooldown = spec.fireRate * (enemy ? 2.4 : 1);
-  const speed = enemy ? 390 : 560;
-  const spread = enemy ? random(-.16, .16) : random(-.018, .018);
-  const angle = droid.angle + spread;
+  const tuning = COMBAT_TUNING[state.deckIndex];
+  droid.cooldown = spec.fireRate * (enemy ? tuning.cadence : 1);
+  const speed = enemy ? tuning.bulletSpeed : 620;
+  const spread = enemy ? random(-tuning.spread, tuning.spread) : random(-.014, .014);
+  let baseAngle = forcedAngle ?? droid.angle;
+  if (!enemy) {
+    const assisted = findAimAssistTarget(droid);
+    if (assisted) {
+      baseAngle = assisted.targetAngle;
+      droid.angle = assisted.targetAngle;
+      droid.aimTarget = assisted.target;
+      droid.aimTimer = .18;
+    }
+  }
+  const angle = baseAngle + spread;
   const muzzle = droid.radius + 9;
   state.bullets.push({
     x: droid.x + Math.cos(angle) * muzzle,
     y: droid.y + Math.sin(angle) * muzzle,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-    life: enemy ? 1.5 : 1.25, enemy, damage: spec.damage, color: enemy ? '#f27b55' : spec.accent
+    life: enemy ? 1.8 : 1.25, enemy, damage: spec.damage * (enemy ? tuning.damage : 1), color: enemy ? '#f27b55' : spec.accent
   });
   addParticles(droid.x + Math.cos(angle) * muzzle, droid.y + Math.sin(angle) * muzzle, spec.accent, 3, 55);
   audio.shot(enemy);
@@ -373,6 +411,7 @@ function shoot(droid, enemy) {
 
 function updateEnemies(dt) {
   const player = state.player;
+  const tuning = COMBAT_TUNING[state.deckIndex];
   const attackerCap = [1, 2, 3][state.deckIndex];
   const activeAttackers = new Set(
     state.combatUnlocked
@@ -394,10 +433,22 @@ function updateEnemies(dt) {
     let moveAngle;
     if (sees) {
       const targetAngle = Math.atan2(dy, dx);
-      enemy.angle += angleDelta(enemy.angle, targetAngle) * clamp(dt * 4, 0, 1);
-      if (dist > 245 || enemy.kind === '123') moveAngle = targetAngle + (enemy.kind === '123' && dist < 280 ? Math.PI : 0);
-      if (dist < 520 && enemy.cooldown <= 0) shoot(enemy, true);
+      if (enemy.windup > 0) {
+        enemy.windup -= dt;
+        enemy.angle += angleDelta(enemy.angle, enemy.aimAngle) * clamp(dt * 7, 0, 1);
+        if (enemy.windup <= 0) shoot(enemy, true, enemy.aimAngle);
+      } else {
+        enemy.angle += angleDelta(enemy.angle, targetAngle) * clamp(dt * 3, 0, 1);
+        if (dist > 245 || enemy.kind === '123') moveAngle = targetAngle + (enemy.kind === '123' && dist < 280 ? Math.PI : 0);
+        if (dist < 520 && enemy.cooldown <= 0) {
+          enemy.windup = tuning.windup;
+          enemy.aimAngle = targetAngle;
+          moveAngle = undefined;
+          audio.tone(96, .09, 'sawtooth', .012, 35);
+        }
+      }
     } else {
+      enemy.windup = 0;
       enemy.wanderTimer -= dt;
       if (enemy.wanderTimer <= 0) { enemy.wanderTimer = random(.8, 2.6); enemy.wanderAngle += random(-1.7, 1.7); }
       moveAngle = enemy.wanderAngle;
@@ -447,10 +498,12 @@ function damagePlayer(amount) {
 
 function destroyEnemy(enemy) {
   const spec = DROID_TYPES[enemy.kind];
+  const tuning = COMBAT_TUNING[state.deckIndex];
   state.score += spec.rank * 125;
   addParticles(enemy.x, enemy.y, spec.accent, 24, 240);
   state.shake = Math.min(14, state.shake + 5);
-  if (Math.random() < .34) state.pickups.push({ x: enemy.x, y: enemy.y, life: 12, spin: 0 });
+  state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * tuning.killHeal);
+  if (Math.random() < tuning.pickup) state.pickups.push({ x: enemy.x, y: enemy.y, life: 14, spin: 0 });
   state.enemies.splice(state.enemies.indexOf(enemy), 1);
   if (!state.enemies.length && !state.deckCleared) {
     state.deckCleared = true;
@@ -466,7 +519,7 @@ function destroyPlayer() {
     const oldKind = player.kind;
     addParticles(player.x, player.y, DROID_TYPES[oldKind].accent, 28, 260);
     state.player = makeDroid('001', player.x, player.y, true);
-    state.player.hp = 28;
+    state.player.hp = 40;
     state.player.invuln = 1.35;
     state.player.angle = player.angle;
     toast('CHASSIS LOST // INFLUENCE DEVICE EJECTED', 2.8);
@@ -480,7 +533,7 @@ function updatePickups(dt) {
   for (let i = state.pickups.length - 1; i >= 0; i--) {
     const pickup = state.pickups[i]; pickup.life -= dt; pickup.spin += dt * 3;
     if (distance(pickup, state.player) < state.player.radius + 22) {
-      state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * .27);
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * .4);
       state.score += 75; state.pickups.splice(i, 1); audio.pickup(); toast('ENERGY CELL ABSORBED', 1.2);
     } else if (pickup.life <= 0) state.pickups.splice(i, 1);
   }
@@ -825,10 +878,85 @@ function drawLift() {
   ctx.restore();
 }
 
+function drawEmergencyLighting() {
+  const deck = DECKS[state.deckIndex];
+  ctx.save();
+  ctx.fillStyle = `rgba(3, 6, 4, ${deck.shadow})`;
+  ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  ctx.globalCompositeOperation = 'screen';
+
+  for (const [worldX, worldY, colorName, phase] of deck.lights) {
+    const x = worldX - state.camera.x, y = worldY - state.camera.y;
+    if (x < -340 || y < -340 || x > WIDTH + 340 || y > HEIGHT + 340) continue;
+    const rgb = LIGHT_COLORS[colorName];
+    const wave = .78 + Math.sin(state.time * (colorName === 'red' ? 3.7 : 1.7) + phase) * .16;
+    const dropout = deck.emergency > .65 && Math.sin(state.time * 2.3 + phase) + Math.sin(state.time * 7.1 + phase) > 1.42 ? .24 : 1;
+    const intensity = wave * dropout * (.62 + deck.emergency * .38);
+    const radius = 225 + deck.emergency * 75;
+    const glow = ctx.createRadialGradient(x, y, 4, x, y, radius);
+    glow.addColorStop(0, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.28 * intensity})`);
+    glow.addColorStop(.3, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.14 * intensity})`);
+    glow.addColorStop(1, `rgba(${rgb[0]},${rgb[1]},${rgb[2]},0)`);
+    ctx.fillStyle = glow; ctx.fillRect(x - radius, y - radius, radius * 2, radius * 2);
+
+    if (deck.emergency > .3) {
+      const sweep = state.time * (colorName === 'red' ? 1.45 : .62) + phase;
+      ctx.save(); ctx.translate(x, y);
+      ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${.035 * intensity})`;
+      ctx.beginPath(); ctx.moveTo(0, 0); ctx.arc(0, 0, radius * 1.35, sweep - .22, sweep + .22); ctx.closePath(); ctx.fill();
+      ctx.restore();
+    }
+  }
+  ctx.restore();
+
+  for (const [worldX, worldY, colorName, phase] of deck.lights) {
+    const x = worldX - state.camera.x, y = worldY - state.camera.y;
+    if (x < -30 || y < -30 || x > WIDTH + 30 || y > HEIGHT + 30) continue;
+    const rgb = LIGHT_COLORS[colorName];
+    const blink = .55 + Math.sin(state.time * 4 + phase) * .35;
+    ctx.save(); ctx.translate(x, y);
+    ctx.fillStyle = '#141a16'; ctx.beginPath(); ctx.arc(0, 0, 10, 0, TAU); ctx.fill();
+    ctx.strokeStyle = '#8b7c5b'; ctx.lineWidth = 2; ctx.stroke();
+    ctx.fillStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${blink})`; ctx.beginPath(); ctx.arc(0, 0, 5, 0, TAU); ctx.fill();
+    ctx.strokeStyle = `rgba(${rgb[0]},${rgb[1]},${rgb[2]},${blink * .55})`; ctx.lineWidth = 1;
+    ctx.beginPath(); ctx.arc(0, 0, 16 + blink * 4, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+
+  if (deck.emergency > .6) {
+    const alarm = .5 + Math.sin(state.time * 2.2) * .5;
+    const edge = ctx.createRadialGradient(WIDTH / 2, HEIGHT / 2, HEIGHT * .25, WIDTH / 2, HEIGHT / 2, WIDTH * .72);
+    edge.addColorStop(.55, 'rgba(120,20,10,0)'); edge.addColorStop(1, `rgba(145,22,12,${.035 + alarm * .025})`);
+    ctx.fillStyle = edge; ctx.fillRect(0, 0, WIDTH, HEIGHT);
+  }
+}
+
 function drawDroid(droid, player = false) {
   const spec = DROID_TYPES[droid.kind];
   const x = droid.x - state.camera.x, y = droid.y - state.camera.y;
   if (x < -80 || y < -80 || x > WIDTH + 80 || y > HEIGHT + 80) return;
+  if (!player && droid.windup > 0) {
+    const tuning = COMBAT_TUNING[state.deckIndex];
+    const charge = 1 - clamp(droid.windup / tuning.windup, 0, 1);
+    const range = Math.min(520, distance(droid, state.player));
+    ctx.save();
+    ctx.strokeStyle = `rgba(255,74,50,${.22 + charge * .68})`;
+    ctx.lineWidth = 1.5 + charge * 2;
+    ctx.setLineDash([8, 7]);
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x + Math.cos(droid.aimAngle) * range, y + Math.sin(droid.aimAngle) * range); ctx.stroke();
+    ctx.setLineDash([]);
+    ctx.strokeStyle = `rgba(255,177,61,${.35 + charge * .6})`; ctx.lineWidth = 2;
+    ctx.beginPath(); ctx.arc(x, y, droid.radius + 8 + charge * 5, 0, TAU); ctx.stroke();
+    ctx.restore();
+  }
+  if (!player && state.player.aimTarget === droid && state.player.aimTimer > 0) {
+    ctx.save(); ctx.translate(x, y); ctx.strokeStyle = 'rgba(255,229,145,.88)'; ctx.lineWidth = 2;
+    const r = droid.radius + 10;
+    for (const a of [0, Math.PI / 2, Math.PI, Math.PI * 1.5]) {
+      ctx.save(); ctx.rotate(a); ctx.beginPath(); ctx.moveTo(r - 7, -r); ctx.lineTo(r, -r); ctx.lineTo(r, -r + 7); ctx.stroke(); ctx.restore();
+    }
+    ctx.restore();
+  }
   ctx.save(); ctx.translate(x, y);
   ctx.fillStyle = 'rgba(0,0,0,.42)'; ctx.beginPath(); ctx.ellipse(8, droid.radius * .66, droid.radius * 1.15, droid.radius * .58, droid.angle, 0, TAU); ctx.fill();
   ctx.rotate(droid.angle);
@@ -969,7 +1097,7 @@ function render() {
   drawFloor();
   state.decorations.forEach(drawDecoration);
   drawOuterWalls(); state.walls.forEach(drawWall);
-  drawLift(); drawTerminal(); drawPickups();
+  drawLift(); drawTerminal(); drawEmergencyLighting(); drawPickups();
   [...state.enemies, state.player].filter(Boolean).sort((a,b) => a.y - b.y).forEach((d) => drawDroid(d, d === state.player));
   drawBulletsAndParticles();
   if (state.introTimer > 0) {
