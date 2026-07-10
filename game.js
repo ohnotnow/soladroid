@@ -37,6 +37,15 @@ const DROID_TYPES = {
 
 const RATING_LABELS = ['MOBILITY', 'ARMOUR', 'IMPACT', 'FIRE CYCLE', 'STABILITY'];
 
+const TRANSFER_ROUTES = [
+  [0, 1, 2],
+  [0, 3, 6],
+  [3, 4, 5],
+  [2, 5, 8],
+  [6, 7, 8]
+];
+const TRANSFER_CORE_LABELS = ['A1', 'A2', 'A3', 'B1', 'B2', 'B3', 'C1', 'C2', 'C3'];
+
 const COMBAT_TUNING = [
   { cadence: 4.2, spread: .38, bulletSpeed: 275, damage: .35, windup: .68, pickup: .72, killHeal: .12, aimCone: 2.05 },
   { cadence: 3.8, spread: .34, bulletSpeed: 300, damage: .5, windup: .6, pickup: .6, killHeal: .1, aimCone: 1.8 },
@@ -695,52 +704,118 @@ function closeTerminal() {
 function startTransfer(target) {
   const playerRank = DROID_TYPES[state.player.kind].rank;
   const enemyRank = DROID_TYPES[target.kind].rank;
+  const training = Boolean(state.tutorial?.active && state.tutorial.step === 2);
+  const playerCapacity = 6 + Math.ceil(playerRank / 2) + (training ? 3 : 0);
+  const enemyCapacity = 6 + Math.ceil(enemyRank / 2) - (training ? 1 : 0);
   state.mode = 'transfer';
   state.transfer = {
-    target, time: 12, lane: 2, cores: Array(9).fill(null), pulses: [],
-    playerCooldown: 0, enemyCooldown: .5, playerRank, enemyRank,
-    intro: 1.25, finished: false,
-    training: Boolean(state.tutorial?.active && state.tutorial.step === 2), playerPulsesSent: 0
+    target, time: 14, lane: 2, cores: Array(9).fill(null), coreFlash: Array(9).fill(0), pulses: [],
+    playerCooldown: 0, playerRecharge: clamp(.56 - playerRank * .025, .3, .54),
+    enemyCooldown: training ? 1.35 : 1.05, enemyTelegraph: training ? 1.25 : clamp(1.15 - enemyRank * .035, .78, 1.12),
+    playerRank, enemyRank, playerCapacity, enemyCapacity,
+    playerCharges: playerCapacity, enemyCharges: enemyCapacity, enemyIntent: null, enemyMoves: 0,
+    intro: 2.8, finished: false, resultTitle: '', resultReason: '', event: 'SELECT A ROUTE // YELLOW SHOWS YOUR NEXT TARGET', eventTimer: 4,
+    training
   };
+  state.gamepadButtons = [];
   ui.transferPlayer.textContent = state.player.kind;
   ui.transferEnemy.textContent = target.kind;
-  ui.transferTitle.textContent = state.transfer.training ? 'GUIDED CIRCUIT' : 'CIRCUIT DUEL';
+  ui.transferTitle.textContent = training ? 'GUIDED CIRCUIT' : 'CIRCUIT ROUTING';
   ui.transfer.classList.add('is-visible');
   audio.transfer();
 }
 
-function sendTransferPulse(owner, lane) {
+function getTransferTarget(tr, owner, lane) {
+  const route = TRANSFER_ROUTES[lane];
+  const reserved = new Set(tr.pulses.filter((pulse) => pulse.owner === owner && !pulse.dead).map((pulse) => pulse.targetCore));
+  return route.find((index) => !reserved.has(index) && tr.cores[index] && tr.cores[index] !== owner)
+    ?? route.find((index) => !reserved.has(index) && tr.cores[index] === null)
+    ?? null;
+}
+
+function transferEvent(tr, message, duration = 1.4) {
+  tr.event = message;
+  tr.eventTimer = duration;
+}
+
+function sendTransferPulse(owner, lane, committedTarget = null) {
   const tr = state.transfer;
   if (!tr || tr.intro > 0 || tr.finished) return;
-  if (owner === 'player') {
-    if (tr.playerCooldown > 0) return;
-    tr.playerCooldown = clamp(.48 - tr.playerRank * .025, .25, .48);
-    tr.playerPulsesSent++;
-  } else {
-    if (tr.enemyCooldown > 0) return;
-    tr.enemyCooldown = tr.training ? 1.05 : clamp(.86 - tr.enemyRank * .025, .55, .86);
+  if (owner === 'player' && tr.pulses.some((pulse) => pulse.owner === 'player' && pulse.lane === lane && !pulse.dead)) {
+    transferEvent(tr, `ROUTE ${lane + 1} BUSY // WAIT OR SELECT ANOTHER`);
+    return;
   }
-  tr.pulses.push({ owner, lane, progress: owner === 'player' ? 0 : 1, speed: owner === 'player' ? .58 + tr.playerRank * .012 : -.52 - tr.enemyRank * .016 });
+  const targetCore = committedTarget ?? getTransferTarget(tr, owner, lane);
+  if (targetCore === null) {
+    if (owner === 'player') transferEvent(tr, `ROUTE ${lane + 1} ALREADY SECURE // SELECT ANOTHER`);
+    return;
+  }
+  if (owner === 'player') {
+    if (tr.playerCharges <= 0) { transferEvent(tr, 'NO PULSES REMAIN // HOLD YOUR CAPTURED CORES'); return; }
+    if (tr.playerCooldown > 0) { transferEvent(tr, `PULSE RECHARGING // ${tr.playerCooldown.toFixed(1)}s`, .45); return; }
+    tr.playerCooldown = tr.playerRecharge;
+    tr.playerCharges--;
+    transferEvent(tr, `PULSE COMMITTED // ROUTE ${lane + 1} TO CORE ${TRANSFER_CORE_LABELS[targetCore]}`, .9);
+  } else {
+    if (tr.enemyCharges <= 0) return;
+    tr.enemyCharges--;
+    tr.enemyMoves++;
+    tr.enemyCooldown = tr.training ? 1.35 : clamp(1.05 - tr.enemyRank * .035, .66, 1.02);
+  }
+  tr.pulses.push({
+    owner, lane, targetCore, progress: 0,
+    speed: owner === 'player' ? .72 + tr.playerRank * .015 : .68 + tr.enemyRank * .015
+  });
   audio.tone(owner === 'player' ? 240 + lane * 25 : 130 + lane * 18, .045, 'square', .018, owner === 'player' ? 70 : -45);
 }
 
-function claimCore(owner) {
-  const cores = state.transfer.cores;
-  const order = owner === 'player' ? [...cores.keys()] : [...cores.keys()].reverse();
-  const open = order.find((i) => cores[i] === null);
-  if (open !== undefined) cores[open] = owner;
-  else {
-    const victim = order.find((i) => cores[i] !== owner);
-    if (victim !== undefined) cores[victim] = owner;
-  }
+function claimCore(owner, index) {
+  const tr = state.transfer;
+  const previous = tr.cores[index];
+  tr.cores[index] = owner;
+  tr.coreFlash[index] = 1;
+  transferEvent(tr, `${owner === 'player' ? 'YOU' : 'CENTRAL COMMAND'} ${previous ? 'OVERRIDES' : 'CAPTURES'} CORE ${TRANSFER_CORE_LABELS[index]}`);
   audio.tone(owner === 'player' ? 510 : 105, .09, 'triangle', .028, owner === 'player' ? 90 : -25);
+}
+
+function chooseEnemyIntent(tr) {
+  const candidates = TRANSFER_ROUTES.map((route, lane) => {
+    const targetCore = getTransferTarget(tr, 'enemy', lane);
+    if (targetCore === null) return null;
+    const owner = tr.cores[targetCore];
+    const contested = tr.pulses.some((pulse) => pulse.owner === 'player' && pulse.lane === lane);
+    const score = (owner === 'player' ? 6 : 3) + (contested ? 2 : 0);
+    return { lane, targetCore, score, tie: (lane - tr.enemyMoves - tr.enemyRank + 10) % 5 };
+  }).filter(Boolean).sort((a, b) => b.score - a.score || a.tie - b.tie || a.lane - b.lane);
+  if (!candidates.length) return null;
+  return { ...candidates[0], time: tr.enemyTelegraph, duration: tr.enemyTelegraph };
+}
+
+function getTransferGeometry() {
+  const coreX = [410, 490, 570];
+  const coreY = [145, 225, 305];
+  return {
+    playerPorts: Array.from({ length: 5 }, (_, lane) => ({ x: 72, y: 116 + lane * 56 })),
+    enemyPorts: Array.from({ length: 5 }, (_, lane) => ({ x: transferCanvas.width - 72, y: 116 + lane * 56 })),
+    cores: TRANSFER_CORE_LABELS.map((_, index) => ({ x: coreX[index % 3], y: coreY[Math.floor(index / 3)] }))
+  };
+}
+
+function transferPulsePosition(pulse, geometry) {
+  const start = pulse.owner === 'player' ? geometry.playerPorts[pulse.lane] : geometry.enemyPorts[pulse.lane];
+  const end = geometry.cores[pulse.targetCore];
+  return { x: lerp(start.x, end.x, pulse.progress), y: lerp(start.y, end.y, pulse.progress) };
 }
 
 function updateTransfer(dt) {
   const tr = state.transfer;
   if (!tr || tr.finished) return;
   if (tr.intro > 0) { tr.intro -= dt; renderTransfer(); return; }
-  tr.time -= dt; tr.playerCooldown -= dt; tr.enemyCooldown -= dt;
+  tr.time -= dt;
+  tr.playerCooldown = Math.max(0, tr.playerCooldown - dt);
+  tr.enemyCooldown = Math.max(0, tr.enemyCooldown - dt);
+  tr.eventTimer = Math.max(0, tr.eventTimer - dt);
+  tr.coreFlash = tr.coreFlash.map((value) => Math.max(0, value - dt * 2.4));
   if (pressed.has('ArrowUp') || pressed.has('KeyW')) tr.lane = (tr.lane + 4) % 5;
   if (pressed.has('ArrowDown') || pressed.has('KeyS')) tr.lane = (tr.lane + 1) % 5;
   if (pressed.has('Space') || pressed.has('Enter')) sendTransferPulse('player', tr.lane);
@@ -755,27 +830,37 @@ function updateTransfer(dt) {
     state.gamepadButtons = down;
   }
 
-  if (tr.enemyCooldown <= 0) {
-    const incoming = tr.pulses.filter((p) => p.owner === 'player' && p.progress > .52).sort((a, b) => b.progress - a.progress)[0];
-    const lane = incoming && Math.random() < .36 ? incoming.lane : Math.floor(Math.random() * 5);
-    sendTransferPulse('enemy', lane);
+  if (!tr.enemyIntent && tr.enemyCooldown <= 0 && tr.enemyCharges > 0) tr.enemyIntent = chooseEnemyIntent(tr);
+  if (tr.enemyIntent) {
+    tr.enemyIntent.time -= dt;
+    if (tr.enemyIntent.time <= 0) {
+      sendTransferPulse('enemy', tr.enemyIntent.lane, tr.enemyIntent.targetCore);
+      tr.enemyIntent = null;
+    }
   }
 
   for (const pulse of tr.pulses) pulse.progress += pulse.speed * dt;
+  const geometry = getTransferGeometry();
   for (let a = 0; a < tr.pulses.length; a++) {
     for (let b = a + 1; b < tr.pulses.length; b++) {
       const p1 = tr.pulses[a], p2 = tr.pulses[b];
-      if (p1.lane === p2.lane && p1.owner !== p2.owner && Math.abs(p1.progress - p2.progress) < .045) {
-        p1.dead = p2.dead = true; audio.tone(70, .05, 'sawtooth', .02, -20);
+      if (p1.owner !== p2.owner) {
+        const pos1 = transferPulsePosition(p1, geometry);
+        const pos2 = transferPulsePosition(p2, geometry);
+        if (Math.hypot(pos1.x - pos2.x, pos1.y - pos2.y) < 21) {
+          p1.dead = p2.dead = true;
+          transferEvent(tr, 'PULSES COLLIDE // CORE PATH BLOCKED');
+          audio.tone(70, .05, 'sawtooth', .02, -20);
+        }
       }
     }
   }
   for (const pulse of tr.pulses) {
-    if (!pulse.dead && pulse.owner === 'player' && pulse.progress >= 1) { pulse.dead = true; claimCore('player'); }
-    if (!pulse.dead && pulse.owner === 'enemy' && pulse.progress <= 0) { pulse.dead = true; claimCore('enemy'); }
+    if (!pulse.dead && pulse.progress >= 1) { pulse.dead = true; claimCore(pulse.owner, pulse.targetCore); }
   }
   tr.pulses = tr.pulses.filter((p) => !p.dead);
-  if (tr.time <= 0) finishTransfer();
+  const exhausted = tr.playerCharges <= 0 && tr.enemyCharges <= 0 && !tr.pulses.length && !tr.enemyIntent;
+  if (tr.time <= 0 || exhausted) finishTransfer();
   renderTransfer();
 }
 
@@ -783,22 +868,19 @@ function finishTransfer() {
   const tr = state.transfer;
   if (!tr || tr.finished) return;
   tr.finished = true;
-  let playerScore = tr.cores.filter((c) => c === 'player').length;
-  let enemyScore = tr.cores.filter((c) => c === 'enemy').length;
-  if (tr.training && tr.playerPulsesSent >= 3) {
-    while (playerScore <= enemyScore) {
-      const assisted = tr.cores.findIndex((core) => core !== 'player');
-      if (assisted < 0) break;
-      tr.cores[assisted] = 'player';
-      playerScore = tr.cores.filter((c) => c === 'player').length;
-      enemyScore = tr.cores.filter((c) => c === 'enemy').length;
-    }
-  }
-  const success = playerScore > enemyScore;
+  const playerScore = tr.cores.filter((c) => c === 'player').length;
+  const enemyScore = tr.cores.filter((c) => c === 'enemy').length;
+  const success = playerScore >= 5;
+  tr.resultTitle = success ? 'TRANSFER ACCEPTED' : 'TRANSFER REJECTED';
+  tr.resultReason = success
+    ? `${playerScore}-${enemyScore} // CORE MAJORITY ESTABLISHED`
+    : enemyScore >= 5
+      ? `${playerScore}-${enemyScore} // CENTRAL COMMAND HOLDS THE CORE`
+      : `${playerScore}-${enemyScore} // FIVE CORES REQUIRED`;
   setTimeout(() => {
     if (success) completeTransferSuccess(tr.target);
     else completeTransferFail(tr.target);
-  }, 700);
+  }, 1400);
 }
 
 function completeTransferSuccess(target) {
@@ -1238,39 +1320,120 @@ function render() {
 function renderTransfer() {
   const tr = state.transfer; if (!tr) return;
   const w = transferCanvas.width, h = transferCanvas.height;
+  const geometry = getTransferGeometry();
+  const playerTarget = getTransferTarget(tr, 'player', tr.lane);
+  const playerLaneBusy = tr.pulses.some((pulse) => pulse.owner === 'player' && pulse.lane === tr.lane && !pulse.dead);
+  const playerScore = tr.cores.filter((owner) => owner === 'player').length;
+  const enemyScore = tr.cores.filter((owner) => owner === 'enemy').length;
   tx.fillStyle = '#121915'; tx.fillRect(0,0,w,h);
   tx.strokeStyle = 'rgba(154,170,156,.08)'; tx.lineWidth = 1;
   for (let x = 0; x < w; x += 40) { tx.beginPath(); tx.moveTo(x,0); tx.lineTo(x,h); tx.stroke(); }
   for (let y = 0; y < h; y += 40) { tx.beginPath(); tx.moveTo(0,y); tx.lineTo(w,y); tx.stroke(); }
-  const left = 100, right = w - 100, top = 80, gap = 65;
-  tx.font = '12px monospace'; tx.textBaseline = 'middle';
+
+  tx.textBaseline = 'middle';
+  tx.font = '700 20px monospace'; tx.textAlign = 'left'; tx.fillStyle = '#f4d66f';
+  tx.fillText(`YOU ${playerScore}`, 24, 25);
+  tx.font = '11px monospace'; tx.fillStyle = '#b4ae86';
+  tx.fillText(`PULSES ${tr.playerCharges}/${tr.playerCapacity}`, 24, 46);
+  tx.fillStyle = tr.playerCooldown > 0 ? '#8b7860' : '#9ee0af';
+  tx.fillText(tr.playerCooldown > 0 ? `RECHARGE ${tr.playerCooldown.toFixed(1)}s` : 'PULSE READY', 138, 46);
+
+  tx.textAlign = 'right'; tx.font = '700 20px monospace'; tx.fillStyle = '#ed655e';
+  tx.fillText(`${enemyScore} CENTRAL`, w - 24, 25);
+  tx.font = '11px monospace'; tx.fillStyle = '#bd8b80';
+  tx.fillText(`PULSES ${tr.enemyCharges}/${tr.enemyCapacity}`, w - 24, 46);
+  if (tr.enemyIntent) {
+    tx.fillStyle = '#ef8a74';
+    tx.fillText(`ROUTE ${tr.enemyIntent.lane + 1} IN ${Math.max(0, tr.enemyIntent.time).toFixed(1)}s`, w - 138, 46);
+  }
+
+  tx.textAlign = 'center';
+  tx.font = '700 13px monospace'; tx.fillStyle = '#c8c3a6'; tx.fillText('CAPTURE 5 OF 9 CORES', w / 2, 22);
+  tx.font = '700 25px monospace'; tx.fillStyle = tr.time < 3 ? '#ef655e' : '#f2ead2';
+  tx.fillText(Math.max(0, tr.time).toFixed(1), w / 2, 47);
+
+  const drawPath = (start, end, color, width = 1, dash = []) => {
+    tx.save(); tx.strokeStyle = color; tx.lineWidth = width; tx.setLineDash(dash);
+    tx.beginPath(); tx.moveTo(start.x, start.y);
+    tx.bezierCurveTo(lerp(start.x, end.x, .42), start.y, lerp(start.x, end.x, .66), end.y, end.x, end.y);
+    tx.stroke(); tx.restore();
+  };
+
   for (let lane = 0; lane < 5; lane++) {
-    const y = top + lane * gap;
-    tx.strokeStyle = lane === tr.lane ? '#f3d06d' : '#59675c'; tx.lineWidth = lane === tr.lane ? 4 : 2;
-    tx.beginPath(); tx.moveTo(left,y); tx.lineTo(right,y); tx.stroke();
-    for (let x = left + 60; x < right - 40; x += 90) { tx.fillStyle = '#263129'; tx.beginPath(); tx.arc(x,y,6,0,TAU); tx.fill(); tx.strokeStyle = '#7e876f'; tx.lineWidth = 1; tx.stroke(); }
-    tx.fillStyle = lane === tr.lane ? '#ffc74d' : '#7a887d'; tx.fillText(`BUS ${lane + 1}`, 25, y);
+    const playerPort = geometry.playerPorts[lane];
+    const enemyPort = geometry.enemyPorts[lane];
+    for (const coreIndex of TRANSFER_ROUTES[lane]) {
+      drawPath(playerPort, geometry.cores[coreIndex], 'rgba(111,133,116,.2)');
+      drawPath(enemyPort, geometry.cores[coreIndex], 'rgba(126,91,82,.16)');
+    }
+    const selected = lane === tr.lane;
+    tx.fillStyle = selected ? '#f4d66f' : '#36453b'; tx.strokeStyle = selected ? '#fff0a6' : '#708075'; tx.lineWidth = selected ? 3 : 1;
+    tx.beginPath(); tx.arc(playerPort.x, playerPort.y, selected ? 11 : 8, 0, TAU); tx.fill(); tx.stroke();
+    tx.fillStyle = selected ? '#f4d66f' : '#79887c'; tx.textAlign = 'left'; tx.font = '11px monospace'; tx.fillText(`R${lane + 1}`, 18, playerPort.y);
+
+    const intent = tr.enemyIntent?.lane === lane;
+    tx.fillStyle = intent ? '#e96359' : '#3e332f'; tx.strokeStyle = intent ? '#ff9882' : '#80635c'; tx.lineWidth = intent ? 3 : 1;
+    tx.beginPath(); tx.arc(enemyPort.x, enemyPort.y, intent ? 11 : 8, 0, TAU); tx.fill(); tx.stroke();
+    tx.fillStyle = intent ? '#ef7b69' : '#8c7069'; tx.textAlign = 'right'; tx.fillText(`R${lane + 1}`, w - 18, enemyPort.y);
   }
-  tx.fillStyle = '#263128'; tx.fillRect(w/2 - 38, 30, 76, h-60); tx.strokeStyle = '#a4844c'; tx.lineWidth = 2; tx.strokeRect(w/2 - 38,30,76,h-60);
+
+  if (playerTarget !== null) {
+    drawPath(geometry.playerPorts[tr.lane], geometry.cores[playerTarget], '#f4d66f', 4, [10, 7]);
+  }
+  if (tr.enemyIntent) {
+    const pulse = .45 + Math.sin(tr.time * 8) * .18;
+    drawPath(geometry.enemyPorts[tr.enemyIntent.lane], geometry.cores[tr.enemyIntent.targetCore], `rgba(239,101,88,${pulse})`, 4, [7, 6]);
+  }
+
   tr.cores.forEach((owner, i) => {
-    const y = 52 + i * 42;
-    tx.fillStyle = owner === 'player' ? '#f4d66f' : owner === 'enemy' ? '#e45f5f' : '#111713';
-    tx.fillRect(w/2 - 22, y, 44, 26); tx.strokeStyle = '#a79b78'; tx.strokeRect(w/2 - 22,y,44,26);
-    if (owner) { tx.fillStyle = '#172018'; tx.font = '700 11px monospace'; tx.textAlign = 'center'; tx.fillText(owner === 'player' ? '001' : 'CPU', w/2, y+13); }
+    const core = geometry.cores[i];
+    const selectedTarget = i === playerTarget;
+    const enemyTarget = i === tr.enemyIntent?.targetCore;
+    tx.fillStyle = owner === 'player' ? '#d7b94f' : owner === 'enemy' ? '#b94d48' : '#172019';
+    tx.fillRect(core.x - 29, core.y - 23, 58, 46);
+    tx.strokeStyle = tr.coreFlash[i] > 0 ? '#fff7ce' : selectedTarget ? '#f4d66f' : enemyTarget ? '#ef655e' : '#798375';
+    tx.lineWidth = tr.coreFlash[i] > 0 ? 5 : selectedTarget || enemyTarget ? 3 : 1.5;
+    tx.strokeRect(core.x - 29, core.y - 23, 58, 46);
+    tx.textAlign = 'center'; tx.font = '700 12px monospace'; tx.fillStyle = owner ? '#101712' : '#a49e7f';
+    tx.fillText(TRANSFER_CORE_LABELS[i], core.x, core.y - 7);
+    tx.font = '9px monospace'; tx.fillStyle = owner ? '#1a211b' : '#667269';
+    tx.fillText(owner === 'player' ? 'YOU' : owner === 'enemy' ? 'CENTRAL' : 'OPEN', core.x, core.y + 10);
   });
-  tx.textAlign = 'left';
+
   for (const pulse of tr.pulses) {
-    const x = lerp(left, right, pulse.progress), y = top + pulse.lane * gap;
+    const { x, y } = transferPulsePosition(pulse, geometry);
     const color = pulse.owner === 'player' ? '#ffdb70' : '#ed655e';
-    tx.shadowColor = color; tx.shadowBlur = 14; tx.fillStyle = color;
-    tx.beginPath(); tx.moveTo(x + (pulse.owner === 'player' ? 12 : -12), y); tx.lineTo(x - (pulse.owner === 'player' ? 8 : -8), y-8); tx.lineTo(x - (pulse.owner === 'player' ? 8 : -8), y+8); tx.closePath(); tx.fill(); tx.shadowBlur = 0;
+    tx.shadowColor = color; tx.shadowBlur = 15; tx.fillStyle = color; tx.strokeStyle = '#fff4cf'; tx.lineWidth = 1;
+    tx.beginPath(); tx.arc(x, y, 9, 0, TAU); tx.fill(); tx.stroke(); tx.shadowBlur = 0;
+    tx.fillStyle = pulse.owner === 'player' ? '#322b14' : '#341815'; tx.font = '700 7px monospace'; tx.textAlign = 'center';
+    tx.fillText(pulse.owner === 'player' ? 'YOU' : 'CC', x, y + .5);
   }
-  const pCount = tr.cores.filter((c) => c === 'player').length, eCount = tr.cores.filter((c) => c === 'enemy').length;
-  tx.font = '700 24px monospace'; tx.fillStyle = '#f4d66f'; tx.textAlign = 'left'; tx.fillText(`YOU ${pCount}`, 28, 30);
-  tx.fillStyle = '#ed655e'; tx.textAlign = 'right'; tx.fillText(`${eCount} CPU`, w-28, 30);
-  tx.textAlign = 'center'; tx.fillStyle = tr.time < 3 ? '#ef655e' : '#eae2c8'; tx.font = '700 28px monospace'; tx.fillText(Math.max(0,tr.time).toFixed(1), w/2, h-18);
-  if (tr.intro > 0) { tx.fillStyle = 'rgba(8,12,9,.82)'; tx.fillRect(0,0,w,h); tx.fillStyle = '#ffc74d'; tx.font = '700 34px monospace'; tx.fillText('LINKING...', w/2, h/2); }
-  if (tr.finished) { const won = pCount > eCount; tx.fillStyle = 'rgba(8,12,9,.86)'; tx.fillRect(0,0,w,h); tx.fillStyle = won ? '#9ee0af' : '#ef655e'; tx.font = '700 36px monospace'; tx.fillText(won ? 'TRANSFER ACCEPTED' : 'TRANSFER REJECTED', w/2,h/2); }
+
+  tx.textAlign = 'center'; tx.font = '11px monospace';
+  tx.fillStyle = tr.eventTimer > 0 ? '#d9d1aa' : playerLaneBusy ? '#d8b96c' : playerTarget === null ? '#9ee0af' : '#a9b4aa';
+  tx.fillText(tr.eventTimer > 0 ? tr.event : playerLaneBusy
+    ? `ROUTE ${tr.lane + 1} BUSY // WAIT OR SELECT ANOTHER`
+    : playerTarget === null ? `ROUTE ${tr.lane + 1} SECURE // SELECT ANOTHER`
+    : `ROUTE ${tr.lane + 1} TARGETS CORE ${TRANSFER_CORE_LABELS[playerTarget]}`, w / 2, h - 18);
+
+  if (tr.intro > 0) {
+    tx.fillStyle = 'rgba(7,11,8,.94)'; tx.fillRect(0,0,w,h);
+    tx.textAlign = 'center'; tx.fillStyle = '#f4d66f'; tx.font = '700 29px monospace'; tx.fillText('CAPTURE 5 OF 9 CORES', w/2, 105);
+    tx.fillStyle = '#e8e1c7'; tx.font = '13px monospace'; tx.fillText('EACH ROUTE REACHES THREE NAMED CORES', w/2, 145);
+    tx.fillStyle = '#f4d66f'; tx.fillText(`YOUR LINK // ${tr.playerCapacity} PULSES // ${tr.playerRecharge.toFixed(2)}s RECHARGE`, w/2, 185);
+    tx.fillStyle = '#ef7b69'; tx.fillText(`TARGET LINK // ${tr.enemyCapacity} PULSES // ${tr.enemyTelegraph.toFixed(2)}s WARNING`, w/2, 215);
+    tx.fillStyle = '#9fa99f'; tx.fillText('YELLOW PATH = YOUR NEXT TARGET    RED PATH = CENTRAL COMMAND INTENT', w/2, 260);
+    tx.fillStyle = '#f0ead5'; tx.fillText('↑ ↓ SELECT ROUTE    SPACE COMMIT PULSE    MATCH A ROUTE TO INTERCEPT', w/2, 300);
+    if (tr.training) { tx.fillStyle = '#9ee0af'; tx.fillText('GUIDED LINK // THREE EXTRA PULSES // CENTRAL COMMAND DELAYED', w/2, 340); }
+    tx.fillStyle = '#7e897f'; tx.font = '10px monospace'; tx.fillText(`LINK OPENS IN ${Math.max(1, Math.ceil(tr.intro))}`, w/2, 388);
+  }
+  if (tr.finished) {
+    const won = playerScore >= 5;
+    tx.fillStyle = 'rgba(7,11,8,.94)'; tx.fillRect(0,0,w,h);
+    tx.textAlign = 'center'; tx.fillStyle = won ? '#9ee0af' : '#ef655e'; tx.font = '700 34px monospace'; tx.fillText(tr.resultTitle, w/2, h/2 - 25);
+    tx.fillStyle = '#e4dcc2'; tx.font = '700 14px monospace'; tx.fillText(tr.resultReason, w/2, h/2 + 20);
+    tx.fillStyle = '#78847b'; tx.font = '10px monospace'; tx.fillText('CLOSING LINK...', w/2, h/2 + 56);
+  }
 }
 
 const ACTIVE_RENDER_MODES = new Set(['playing', 'transfer']);
