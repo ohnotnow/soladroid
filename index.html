@@ -58,6 +58,20 @@
           <canvas id="gameCanvas" width="1280" height="720" aria-label="Game view"></canvas>
           <div class="screen-glass" aria-hidden="true"></div>
           <div id="objective" class="objective" aria-live="polite"></div>
+          <aside id="radar" class="radar" aria-label="Ship navigation radar">
+            <header><span>NAV-COM</span><strong id="radarStatus">SIGNAL LOCK</strong></header>
+            <canvas id="radarCanvas" width="440" height="250" aria-label="Map showing your position, hostiles, terminal, and lift"></canvas>
+            <footer><span><i class="radar-you"></i>YOU</span><span><i class="radar-hostile"></i>HOSTILE</span><span><i class="radar-goal"></i>OBJECTIVE</span></footer>
+          </aside>
+          <section id="tutorial" class="field-guide" aria-live="polite">
+            <div class="guide-rail" aria-hidden="true"><i id="tutorialProgress"></i></div>
+            <div class="guide-heading">
+              <span id="tutorialStep">FIELD GUIDE // 01</span>
+              <span><kbd>T</kbd> DISMISS</span>
+            </div>
+            <h2 id="tutorialTitle">GET YOUR BEARINGS</h2>
+            <p id="tutorialBody">Move with <kbd>WASD</kbd> or the arrow keys. Your droid fires in the last direction it travelled.</p>
+          </section>
           <div id="prompt" class="action-prompt" aria-live="polite"></div>
           <div id="toast" class="toast" aria-live="assertive"></div>
 
@@ -83,6 +97,7 @@
                 <span><kbd>P</kbd> PAUSE</span>
               </div>
               <p class="gamepad-note">GAMEPAD READY · LEFT STICK MOVE · RIGHT STICK AIM · A FIRE · X TRANSFER</p>
+              <p class="briefing-note">FIRST DEPLOYMENT INCLUDES ACTIVE FIELD GUIDANCE</p>
             </div>
           </section>
 

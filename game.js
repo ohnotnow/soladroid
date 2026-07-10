@@ -2,15 +2,18 @@ const canvas = document.querySelector('#gameCanvas');
 const ctx = canvas.getContext('2d');
 const transferCanvas = document.querySelector('#transferCanvas');
 const tx = transferCanvas.getContext('2d');
+const radarCanvas = document.querySelector('#radarCanvas');
+const rx = radarCanvas.getContext('2d');
 
 const ui = Object.fromEntries(
   [
     'startScreen', 'startButton', 'hudDroid', 'hudName', 'hudEnergyText', 'hudEnergyBar',
     'hudDeck', 'hudHostiles', 'hudScore', 'objective', 'prompt', 'toast', 'terminal',
-    'terminalTitle', 'terminalBody', 'terminalFile', 'terminalClock', 'transfer',
+    'terminalTitle', 'terminalBody', 'terminalFile', 'terminalClock', 'transfer', 'transferTitle',
     'transferPlayer', 'transferEnemy', 'pauseScreen', 'resumeButton', 'soundButton',
     'endScreen', 'endEyebrow', 'endTitle', 'endMessage', 'endScore', 'endHighScore',
-    'restartButton'
+    'restartButton', 'radar', 'radarStatus', 'tutorial', 'tutorialStep', 'tutorialTitle',
+    'tutorialBody', 'tutorialProgress'
   ].map((id) => [id, document.querySelector(`#${id}`)])
 );
 
@@ -42,7 +45,7 @@ const DECKS = [
       [1500, 80, 64, 430], [1500, 650, 64, 670], [1770, 400, 290, 64],
       [1770, 930, 290, 64], [230, 430, 230, 64], [230, 930, 250, 64]
     ],
-    droids: [['123', 470, 710], ['123', 850, 245], ['247', 830, 1120], ['247', 1290, 700], ['420', 1730, 250], ['420', 1880, 1120]]
+    droids: [['123', 500, 710], ['123', 880, 245], ['247', 1290, 700], ['420', 1880, 1120]]
   },
   {
     id: '02', name: 'HABITAT SPINE', tone: '#34322a', start: [160, 210], lift: [2080, 1180], terminal: [1900, 220],
@@ -82,8 +85,16 @@ const state = {
   player: null, enemies: [], bullets: [], particles: [], pickups: [], decorations: [],
   walls: [], terminal: null, lift: null, deckCleared: false, transfer: null,
   sound: localStorage.getItem('paradroid-sound') !== 'off', highScore: Number(localStorage.getItem('paradroid-high-score') || 0),
-  toastTimer: 0, shake: 0, lastTime: performance.now(), gamepadButtons: [], introTimer: 0
+  toastTimer: 0, shake: 0, lastTime: performance.now(), gamepadButtons: [], introTimer: 0,
+  combatUnlocked: true, tutorial: null
 };
+
+const TUTORIAL_STEPS = [
+  { title: 'GET YOUR BEARINGS', body: 'Move with <kbd>WASD</kbd> or the arrow keys. Your droid fires in the last direction it travelled.' },
+  { title: 'TEST THE WEAPON', body: 'Press <kbd>SPACE</kbd> to fire. Keep moving while you shoot; Influence Device 001 is quick, but fragile.' },
+  { title: 'TAKE A BETTER BODY', body: 'Approach a droid and press <kbd>E</kbd>. Win the circuit duel to possess its stronger chassis.' },
+  { title: 'SURVIVE. ADAPT.', body: 'Good. The radar marks hostiles, the deck terminal, and the lift. Clear the deck, then reach the lift.' }
+];
 
 const audio = {
   context: null,
@@ -153,6 +164,7 @@ function loadDeck(index, fresh = false) {
   state.terminal = { x: deck.terminal[0], y: deck.terminal[1], radius: 42 };
   state.lift = { x: deck.lift[0], y: deck.lift[1], radius: 58 };
   state.deckCleared = false;
+  if (index > 0) state.combatUnlocked = true;
   if (fresh || !state.player) {
     state.player = makeDroid('001', deck.start[0], deck.start[1], true);
   } else {
@@ -171,14 +183,76 @@ function startGame() {
   audio.ensure();
   state.score = 0;
   state.time = 0;
+  const needsTutorial = localStorage.getItem('paradroid-tutorial') !== 'done';
+  state.tutorial = { active: needsTutorial, step: 0, distance: 0, fireUsed: false, finishTimer: 0, lastX: 0, lastY: 0 };
+  state.combatUnlocked = !needsTutorial;
   state.mode = 'playing';
   hideAllOverlays();
   loadDeck(0, true);
+  state.tutorial.lastX = state.player.x;
+  state.tutorial.lastY = state.player.y;
+  updateTutorialUi();
   state.lastTime = performance.now();
 }
 
 function hideAllOverlays() {
   [ui.startScreen, ui.terminal, ui.transfer, ui.pauseScreen, ui.endScreen].forEach((el) => el.classList.remove('is-visible'));
+}
+
+function updateTutorialUi() {
+  const tutorial = state.tutorial;
+  const visible = Boolean(tutorial?.active && state.mode === 'playing');
+  ui.tutorial.classList.toggle('is-visible', visible);
+  if (!tutorial) return;
+  const step = TUTORIAL_STEPS[tutorial.step];
+  ui.tutorialStep.textContent = tutorial.step === 3 ? 'FIELD GUIDE // COMPLETE' : `FIELD GUIDE // 0${tutorial.step + 1}`;
+  ui.tutorialTitle.textContent = step.title;
+  ui.tutorialBody.innerHTML = step.body;
+  ui.tutorialProgress.style.width = `${(tutorial.step + 1) * 25}%`;
+}
+
+function advanceTutorial(step) {
+  const tutorial = state.tutorial;
+  if (!tutorial?.active || step <= tutorial.step) return;
+  tutorial.step = step;
+  if (step === 3) {
+    tutorial.finishTimer = 5.5;
+    localStorage.setItem('paradroid-tutorial', 'done');
+  }
+  audio.tone(300 + step * 90, .08, 'triangle', .025, 80);
+  updateTutorialUi();
+}
+
+function dismissTutorial() {
+  if (!state.tutorial) return;
+  state.tutorial.active = false;
+  state.combatUnlocked = true;
+  localStorage.setItem('paradroid-tutorial', 'done');
+  updateTutorialUi();
+  toast('FIELD GUIDE DISMISSED // GOOD LUCK', 1.5);
+}
+
+function notePlayerFired() {
+  state.combatUnlocked = true;
+  if (!state.tutorial?.active) return;
+  state.tutorial.fireUsed = true;
+  if (state.tutorial.step === 1) advanceTutorial(2);
+}
+
+function updateTutorial(dt) {
+  const tutorial = state.tutorial;
+  if (!tutorial?.active) return;
+  if (tutorial.step === 0) {
+    tutorial.distance += Math.hypot(state.player.x - tutorial.lastX, state.player.y - tutorial.lastY);
+    tutorial.lastX = state.player.x; tutorial.lastY = state.player.y;
+    if (tutorial.distance >= 90) advanceTutorial(tutorial.fireUsed ? 2 : 1);
+  } else if (tutorial.step === 3) {
+    tutorial.finishTimer -= dt;
+    if (tutorial.finishTimer <= 0) {
+      tutorial.active = false;
+      updateTutorialUi();
+    }
+  }
 }
 
 function pauseGame(force) {
@@ -294,16 +368,28 @@ function shoot(droid, enemy) {
   });
   addParticles(droid.x + Math.cos(angle) * muzzle, droid.y + Math.sin(angle) * muzzle, spec.accent, 3, 55);
   audio.shot(enemy);
+  if (!enemy) notePlayerFired();
 }
 
 function updateEnemies(dt) {
   const player = state.player;
+  const attackerCap = [1, 2, 3][state.deckIndex];
+  const activeAttackers = new Set(
+    state.combatUnlocked
+      ? state.enemies
+          .map((enemy) => ({ enemy, range: distance(enemy, player) }))
+          .filter(({ enemy, range }) => range < 620 && !lineBlocked(enemy.x, enemy.y, player.x, player.y))
+          .sort((a, b) => a.range - b.range)
+          .slice(0, attackerCap)
+          .map(({ enemy }) => enemy)
+      : []
+  );
   for (const enemy of state.enemies) {
     const spec = DROID_TYPES[enemy.kind];
     enemy.cooldown -= dt; enemy.hitFlash = Math.max(0, enemy.hitFlash - dt * 5); enemy.bob += dt;
     const dx = player.x - enemy.x, dy = player.y - enemy.y;
     const dist = Math.hypot(dx, dy);
-    const sees = dist < 620 && !lineBlocked(enemy.x, enemy.y, player.x, player.y);
+    const sees = activeAttackers.has(enemy);
     enemy.alert = lerp(enemy.alert, sees ? 1 : 0, dt * 4);
     let moveAngle;
     if (sees) {
@@ -451,10 +537,12 @@ function startTransfer(target) {
   state.transfer = {
     target, time: 12, lane: 2, cores: Array(9).fill(null), pulses: [],
     playerCooldown: 0, enemyCooldown: .5, playerRank, enemyRank,
-    intro: 1.25, finished: false
+    intro: 1.25, finished: false,
+    training: Boolean(state.tutorial?.active && state.tutorial.step === 2), playerPulsesSent: 0
   };
   ui.transferPlayer.textContent = state.player.kind;
   ui.transferEnemy.textContent = target.kind;
+  ui.transferTitle.textContent = state.transfer.training ? 'GUIDED CIRCUIT' : 'CIRCUIT DUEL';
   ui.transfer.classList.add('is-visible');
   audio.transfer();
 }
@@ -465,9 +553,10 @@ function sendTransferPulse(owner, lane) {
   if (owner === 'player') {
     if (tr.playerCooldown > 0) return;
     tr.playerCooldown = clamp(.48 - tr.playerRank * .025, .25, .48);
+    tr.playerPulsesSent++;
   } else {
     if (tr.enemyCooldown > 0) return;
-    tr.enemyCooldown = clamp(.86 - tr.enemyRank * .025, .55, .86);
+    tr.enemyCooldown = tr.training ? 1.05 : clamp(.86 - tr.enemyRank * .025, .55, .86);
   }
   tr.pulses.push({ owner, lane, progress: owner === 'player' ? 0 : 1, speed: owner === 'player' ? .58 + tr.playerRank * .012 : -.52 - tr.enemyRank * .016 });
   audio.tone(owner === 'player' ? 240 + lane * 25 : 130 + lane * 18, .045, 'square', .018, owner === 'player' ? 70 : -45);
@@ -532,8 +621,17 @@ function finishTransfer() {
   const tr = state.transfer;
   if (!tr || tr.finished) return;
   tr.finished = true;
-  const playerScore = tr.cores.filter((c) => c === 'player').length;
-  const enemyScore = tr.cores.filter((c) => c === 'enemy').length;
+  let playerScore = tr.cores.filter((c) => c === 'player').length;
+  let enemyScore = tr.cores.filter((c) => c === 'enemy').length;
+  if (tr.training && tr.playerPulsesSent >= 3) {
+    while (playerScore <= enemyScore) {
+      const assisted = tr.cores.findIndex((core) => core !== 'player');
+      if (assisted < 0) break;
+      tr.cores[assisted] = 'player';
+      playerScore = tr.cores.filter((c) => c === 'player').length;
+      enemyScore = tr.cores.filter((c) => c === 'enemy').length;
+    }
+  }
   const success = playerScore > enemyScore;
   setTimeout(() => {
     if (success) completeTransferSuccess(tr.target);
@@ -542,7 +640,7 @@ function finishTransfer() {
 }
 
 function completeTransferSuccess(target) {
-  if (!state.enemies.includes(target)) return exitTransfer();
+  if (!state.enemies.includes(target)) return exitTransfer(false);
   const old = state.player;
   const oldKind = old.kind;
   const oldHp = old.hp;
@@ -557,7 +655,7 @@ function completeTransferSuccess(target) {
   }
   state.score += DROID_TYPES[target.kind].rank * 210;
   addParticles(target.x, target.y, DROID_TYPES[target.kind].accent, 20, 170);
-  audio.success(); exitTransfer(); toast(`TRANSFER COMPLETE // ${target.kind} ${DROID_TYPES[target.kind].name}`, 2.6);
+  audio.success(); exitTransfer(true); toast(`TRANSFER COMPLETE // ${target.kind} ${DROID_TYPES[target.kind].name}`, 2.6);
   if (!state.enemies.length) { state.deckCleared = true; toast('DECK SECURE // LIFT NOW ONLINE', 3); }
 }
 
@@ -569,12 +667,16 @@ function completeTransferFail(target) {
   if (length === 1) { dx = -Math.cos(target.angle); dy = -Math.sin(target.angle); }
   moveEntity(state.player, dx / length * 105, dy / length * 105);
   target.alert = 1; target.cooldown = .25;
-  audio.fail(); exitTransfer(); toast('TRANSFER REJECTED // FEEDBACK DAMAGE', 2.4);
+  audio.fail(); exitTransfer(false); toast('TRANSFER REJECTED // FEEDBACK DAMAGE', 2.4);
   if (state.player.hp <= 0) destroyPlayer();
 }
 
-function exitTransfer() {
+function exitTransfer(success) {
   state.mode = 'playing'; state.transfer = null; ui.transfer.classList.remove('is-visible'); state.lastTime = performance.now();
+  if (success && state.tutorial?.active && state.tutorial.step < 3) {
+    state.combatUnlocked = true;
+    advanceTutorial(3);
+  }
 }
 
 function updateHud() {
@@ -626,6 +728,7 @@ function update(dt) {
   state.player.invuln = Math.max(0, (state.player.invuln || 0) - dt);
   state.player.hurtCooldown = Math.max(0, (state.player.hurtCooldown || 0) - dt);
   updatePlayer(dt); updateEnemies(dt); updateBullets(dt); updatePickups(dt); updateParticles(dt);
+  updateTutorial(dt);
   const targetX = clamp(state.player.x - WIDTH / 2, 0, WORLD.w - WIDTH);
   const targetY = clamp(state.player.y - HEIGHT / 2, 0, WORLD.h - HEIGHT);
   state.camera.x = lerp(state.camera.x, targetX, 1 - Math.pow(.0008, dt));
@@ -799,6 +902,67 @@ function drawPickups() {
   }
 }
 
+function getRadarMode() {
+  if (state.deckIndex === 0) return 'online';
+  if (state.deckIndex === 1) {
+    return Math.sin(state.time * 1.35) > .93 && Math.sin(state.time * 4.4) > .25 ? 'offline' : 'unstable';
+  }
+  return Math.sin(state.time * .9) + Math.sin(state.time * 2.7) > 1.02 ? 'offline' : 'unstable';
+}
+
+function renderRadar() {
+  const w = radarCanvas.width, h = radarCanvas.height;
+  const mode = getRadarMode();
+  const degraded = state.deckIndex > 0;
+  ui.radar.classList.toggle('is-degraded', degraded);
+  ui.radar.classList.toggle('is-offline', mode === 'offline');
+  ui.radarStatus.textContent = mode === 'online' ? 'SIGNAL LOCK' : mode === 'offline' ? 'SIGNAL LOST' : 'SIGNAL UNSTABLE';
+
+  rx.clearRect(0, 0, w, h);
+  rx.fillStyle = '#101813'; rx.fillRect(0, 0, w, h);
+  rx.strokeStyle = 'rgba(133,214,176,.08)'; rx.lineWidth = 1;
+  for (let x = 0; x < w; x += 44) { rx.beginPath(); rx.moveTo(x, 0); rx.lineTo(x, h); rx.stroke(); }
+  for (let y = 0; y < h; y += 42) { rx.beginPath(); rx.moveTo(0, y); rx.lineTo(w, y); rx.stroke(); }
+
+  if (mode === 'offline') {
+    rx.fillStyle = 'rgba(239,101,94,.12)';
+    for (let i = 0; i < 7; i++) rx.fillRect(random(0, w * .7), random(0, h), random(40, w * .6), random(2, 8));
+    rx.fillStyle = '#ef655e'; rx.font = '24px monospace'; rx.textAlign = 'center'; rx.textBaseline = 'middle';
+    rx.fillText('SIGNAL LOST', w / 2, h / 2);
+    return;
+  }
+
+  const pad = 14;
+  const sx = (w - pad * 2) / WORLD.w, sy = (h - pad * 2) / WORLD.h;
+  const jitter = degraded && Math.sin(state.time * 11.7) > .84 ? random(-5, 5) : 0;
+  rx.save(); rx.translate(jitter, 0);
+  rx.strokeStyle = mode === 'unstable' ? '#7d7151' : '#526359'; rx.lineWidth = 2;
+  rx.strokeRect(pad, pad, WORLD.w * sx, WORLD.h * sy);
+  rx.fillStyle = '#39443b';
+  for (const wall of state.walls) rx.fillRect(pad + wall.x * sx, pad + wall.y * sy, Math.max(2, wall.w * sx), Math.max(2, wall.h * sy));
+
+  const point = (x, y) => [pad + x * sx, pad + y * sy];
+  const [terminalX, terminalY] = point(state.terminal.x, state.terminal.y);
+  rx.fillStyle = '#d596b6'; rx.fillRect(terminalX - 5, terminalY - 5, 10, 10);
+  rx.fillStyle = '#3b2535'; rx.font = '10px monospace'; rx.textAlign = 'center'; rx.textBaseline = 'middle'; rx.fillText('T', terminalX, terminalY + 1);
+  const [liftX, liftY] = point(state.lift.x, state.lift.y);
+  rx.strokeStyle = state.deckCleared ? '#fff0a4' : '#ffc74d'; rx.lineWidth = 3; rx.strokeRect(liftX - 7, liftY - 7, 14, 14);
+
+  for (const enemy of state.enemies) {
+    const [x, y] = point(enemy.x, enemy.y);
+    rx.fillStyle = '#ef655e'; rx.beginPath(); rx.arc(x, y, 4.5, 0, TAU); rx.fill();
+    if (state.tutorial?.active && state.tutorial.step === 2 && enemy === state.enemies[0]) {
+      rx.strokeStyle = `rgba(255,199,77,${.45 + Math.sin(state.time * 6) * .3})`; rx.lineWidth = 2;
+      rx.beginPath(); rx.arc(x, y, 10 + Math.sin(state.time * 5) * 2, 0, TAU); rx.stroke();
+    }
+  }
+
+  const [playerX, playerY] = point(state.player.x, state.player.y);
+  rx.save(); rx.translate(playerX, playerY); rx.rotate(state.player.angle);
+  rx.fillStyle = '#f6f0d8'; rx.beginPath(); rx.moveTo(9, 0); rx.lineTo(-6, -6); rx.lineTo(-3, 0); rx.lineTo(-6, 6); rx.closePath(); rx.fill(); rx.restore();
+  rx.restore();
+}
+
 function render() {
   ctx.save();
   if (state.shake > 0 && state.mode === 'playing') ctx.translate(random(-state.shake, state.shake), random(-state.shake, state.shake));
@@ -815,6 +979,7 @@ function render() {
     ctx.fillStyle = '#f1e9d0'; ctx.font = '600 30px sans-serif'; ctx.fillText(DECKS[state.deckIndex].name, WIDTH/2, HEIGHT/2 + 25);
   }
   ctx.restore();
+  renderRadar();
 }
 
 function renderTransfer() {
@@ -871,6 +1036,7 @@ document.addEventListener('keydown', (event) => {
   if (event.code === 'Enter' && state.mode === 'start') startGame();
   else if (event.code === 'Enter' && state.mode === 'end') startGame();
   else if (event.code === 'KeyE' && state.mode === 'terminal') closeTerminal();
+  else if (event.code === 'KeyT' && state.mode === 'playing' && state.tutorial?.active) dismissTutorial();
   else if ((event.code === 'KeyP' || event.code === 'Escape') && ['playing','paused'].includes(state.mode)) pauseGame();
 });
 document.addEventListener('keyup', (event) => keys.delete(event.code));
@@ -882,10 +1048,14 @@ ui.resumeButton.addEventListener('click', () => pauseGame(false));
 ui.soundButton.addEventListener('click', toggleSound);
 
 window.__PARADROID__ = {
-  getState: () => ({ mode: state.mode, deck: state.deckIndex + 1, score: state.score, player: state.player ? { kind: state.player.kind, hp: state.player.hp, x: state.player.x, y: state.player.y } : null, hostiles: state.enemies.length, cleared: state.deckCleared }),
+  getState: () => ({ mode: state.mode, deck: state.deckIndex + 1, score: state.score, player: state.player ? { kind: state.player.kind, hp: state.player.hp, x: state.player.x, y: state.player.y } : null, hostiles: state.enemies.length, cleared: state.deckCleared, combatUnlocked: state.combatUnlocked, tutorialStep: state.tutorial?.active ? state.tutorial.step : null }),
   start: startGame,
   clearDeck: () => { [...state.enemies].forEach(destroyEnemy); },
   teleport: (x, y) => { if (state.player) { state.player.x = x; state.player.y = y; } },
+  teleportToNearest: () => {
+    const target = [...state.enemies].sort((a, b) => distance(a, state.player) - distance(b, state.player))[0];
+    if (target) { state.player.x = target.x - target.radius - state.player.radius - 28; state.player.y = target.y; }
+  },
   setMode: (mode) => { state.mode = mode; }
 };
 
