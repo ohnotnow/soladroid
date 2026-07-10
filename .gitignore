@@ -1,3 +1,4 @@
 paradroid_*
 .ait/
 .playwright*
+.ant/
