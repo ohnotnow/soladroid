@@ -102,7 +102,7 @@ const state = {
   mode: 'start', deckIndex: 0, score: 0, time: 0, camera: { x: 0, y: 0 },
   player: null, enemies: [], bullets: [], particles: [], pickups: [], decorations: [],
   walls: [], terminal: null, lift: null, deckCleared: false, transfer: null, dossierTarget: null, deckBackground: null,
-  sound: localStorage.getItem('paradroid-sound') !== 'off', highScore: Number(localStorage.getItem('paradroid-high-score') || 0),
+  sound: localStorage.getItem('soladroid-sound') !== 'off', highScore: Number(localStorage.getItem('soladroid-high-score') || 0),
   toastTimer: 0, shake: 0, lastTime: performance.now(), gamepadButtons: [], introTimer: 0,
   combatUnlocked: true, tutorial: null
 };
@@ -245,7 +245,7 @@ function startGame() {
   audio.ensure();
   state.score = 0;
   state.time = 0;
-  const needsTutorial = localStorage.getItem('paradroid-tutorial') !== 'done';
+  const needsTutorial = localStorage.getItem('soladroid-tutorial') !== 'done';
   state.tutorial = { active: needsTutorial, step: 0, distance: 0, fireUsed: false, finishTimer: 0, lastX: 0, lastY: 0 };
   state.combatUnlocked = !needsTutorial;
   state.mode = 'playing';
@@ -279,7 +279,7 @@ function advanceTutorial(step) {
   tutorial.step = step;
   if (step === 3) {
     tutorial.finishTimer = 5.5;
-    localStorage.setItem('paradroid-tutorial', 'done');
+    localStorage.setItem('soladroid-tutorial', 'done');
   }
   audio.tone(300 + step * 90, .08, 'triangle', .025, 80);
   updateTutorialUi();
@@ -289,7 +289,7 @@ function dismissTutorial() {
   if (!state.tutorial) return;
   state.tutorial.active = false;
   state.combatUnlocked = true;
-  localStorage.setItem('paradroid-tutorial', 'done');
+  localStorage.setItem('soladroid-tutorial', 'done');
   updateTutorialUi();
   toast('FIELD GUIDE DISMISSED // GOOD LUCK', 1.5);
 }
@@ -327,7 +327,7 @@ function pauseGame(force) {
 
 function toggleSound() {
   state.sound = !state.sound;
-  localStorage.setItem('paradroid-sound', state.sound ? 'on' : 'off');
+  localStorage.setItem('soladroid-sound', state.sound ? 'on' : 'off');
   ui.soundButton.textContent = `SOUND: ${state.sound ? 'ON' : 'OFF'}`;
   if (state.sound) audio.pickup();
 }
@@ -864,7 +864,7 @@ function endGame(won) {
   state.toastTimer = 0;
   ui.toast.classList.remove('is-visible');
   state.highScore = Math.max(state.highScore, state.score);
-  localStorage.setItem('paradroid-high-score', state.highScore);
+  localStorage.setItem('soladroid-high-score', state.highScore);
   ui.endEyebrow.textContent = won ? 'ROVING SYSTEMS // INCIDENT CLOSED' : 'INFLUENCE DEVICE OFFLINE';
   ui.endTitle.textContent = won ? 'SHIP SECURED' : 'SIGNAL LOST';
   ui.endMessage.textContent = won ? 'The emancipation protocol is contained. CERES answers to human command again—for now.' : 'The rogue droids retain control of CERES. Another Influence Device is being prepared.';
@@ -1325,7 +1325,7 @@ ui.restartButton.addEventListener('click', startGame);
 ui.resumeButton.addEventListener('click', () => pauseGame(false));
 ui.soundButton.addEventListener('click', toggleSound);
 
-window.__PARADROID__ = {
+window.__SOLADROID__ = {
   getState: () => ({ mode: state.mode, deck: state.deckIndex + 1, score: state.score, player: state.player ? { kind: state.player.kind, hp: state.player.hp, x: state.player.x, y: state.player.y } : null, hostiles: state.enemies.length, cleared: state.deckCleared, combatUnlocked: state.combatUnlocked, tutorialStep: state.tutorial?.active ? state.tutorial.step : null }),
   start: startGame,
   clearDeck: () => { [...state.enemies].forEach(destroyEnemy); },
