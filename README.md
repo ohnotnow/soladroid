@@ -2,15 +2,17 @@
 
 SolaDroid is a browser action game about boarding hostile machines and turning their strengths against one another.
 
-You begin aboard the stricken RMS Ceres as Influence Device 001, a quick but fragile machine. Clear each deck by fighting its hostile units or transferring into a stronger chassis, then reach the lift before your borrowed body breaks down.
+You begin aboard the stricken RMS Ceres as Influence Device 001, a quick but fragile machine. Clear each deck by fighting its hostile units or transferring into a stronger chassis, then reach the lift before your borrowed body breaks down. Twenty decks lead inward to the intelligence controlling the ship: Central Command.
 
 The game is written in plain HTML, CSS and JavaScript. It uses Canvas for the game world and Web Audio for its sound, with no dependencies or build step.
 
+![screenshot](screenshot.png)
+
 ## Playing
 
-There are three decks to secure. Each chassis has different movement, armour, weapon and stability ratings. Approach another unit to inspect its capabilities, then commit to a circuit duel if you want to take control of it.
+Each chassis has different movement, armour, weapon and stability ratings. Approach another unit to inspect its capabilities, then commit to a circuit duel if you want to take control of it. Transfers expose every pulse, route and change of ownership: capture five of nine cores before Central Command does.
 
-The field guide introduces the controls during your first game. The radar marks hostiles and objectives, while ship terminals contain recovered log entries.
+The field guide introduces the controls during your first game. Early radar guidance marks hostiles and objectives; deeper in the ship, Central Command interferes with that information and turns ordinary cleaning, power and coolant systems against you. Physical warnings remain trustworthy even when the terminals do not.
 
 | Control | Keyboard | Gamepad |
 | --- | --- | --- |
@@ -19,6 +21,12 @@ The field guide introduces the controls during your first game. The radar marks 
 | Fire | Space | A |
 | Interact or transfer | E | X |
 | Pause | P or Escape | Start |
+
+## The descent
+
+The campaign is arranged as five four-deck movements. The breached outer decks are cluttered, damaged and washed in emergency red. Containment gives way to pale administration, synchronized systems and finally the still blue order of the core. The visual noise recedes as Central Command becomes more direct—and more unsettling.
+
+The progression takes inspiration from Stephen Gallagher's radio drama [*The Last Rose of Summer*](https://stephengallagher.com/audio/) and the frozen centre of Dante's *Inferno*: a machine intelligence trapped by its own administrative certainty, and a journey that becomes colder and more ordered as it approaches the centre.
 
 ## Getting started
 
@@ -42,9 +50,7 @@ node --check game.js
 
 ## About
 
-SolaDroid is a personal, unofficial homage to Andrew Braybrook's 1985 game [*Paradroid*](https://en.wikipedia.org/wiki/Paradroid). It does not use the original game's code, graphics or audio, and is not affiliated with its creators or rights holders.
-
-Created by [ohnotnow](https://github.com/ohnotnow) in collaboration with OpenAI Codex.
+SolaDroid is a personal, unofficial homage to Andrew Braybrook's 1985 game [*Paradroid*](https://en.wikipedia.org/wiki/Paradroid).
 
 ## Contributing
 
