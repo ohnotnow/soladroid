@@ -27,12 +27,12 @@ const keys = new Set();
 const pressed = new Set();
 
 const DROID_TYPES = {
-  '001': { name: 'INFLUENCE', role: 'INFILTRATOR', weapon: 'TWIN NEEDLE LASER', maxHp: 66, speed: 238, fireRate: .22, damage: 12, radius: 22, accent: '#f4d66f', rank: 1, decay: .06, ratings: [8, 2, 3, 7, 10], strength: 'Agile and exceptionally stable.', weakness: 'Almost no protection under sustained fire.' },
-  '123': { name: 'SCOUT', role: 'RECON CHASSIS', weapon: 'PULSE REPEATER', maxHp: 58, speed: 270, fireRate: .18, damage: 7, radius: 25, accent: '#74d4c3', rank: 2, decay: .07, ratings: [10, 1, 1, 10, 9], strength: 'Fastest chassis; excellent firing cycle.', weakness: 'Fragile with very low shot impact.' },
-  '247': { name: 'ENGINEER', role: 'HEAVY UTILITY', weapon: 'INDUSTRIAL CUTTER', maxHp: 112, speed: 148, fireRate: .72, damage: 24, radius: 29, accent: '#d49b59', rank: 3, decay: .1, ratings: [3, 5, 8, 2, 8], strength: 'Heavy cutter hits hard; solid shell.', weakness: 'Slow movement and a long recharge cycle.' },
-  '420': { name: 'SECURITY', role: 'DECK ENFORCER', weapon: 'SECURITY LASER', maxHp: 142, speed: 172, fireRate: .42, damage: 16, radius: 31, accent: '#e76e58', rank: 4, decay: .13, ratings: [6, 7, 6, 6, 7], strength: 'Reliable all-round combat platform.', weakness: 'Competent at everything; exceptional at nothing.' },
-  '711': { name: 'BATTLE', role: 'RAPID ASSAULT', weapon: 'ARC DISRUPTOR', maxHp: 188, speed: 225, fireRate: .16, damage: 8, radius: 35, accent: '#b4ce72', rank: 6, decay: .18, ratings: [9, 8, 2, 10, 4], strength: 'Fast, armoured, and ferocious at close range.', weakness: 'Low impact per shot; control link degrades quickly.' },
-  '999': { name: 'COMMAND', role: 'SIEGE CYBORG', weapon: 'COMMAND CANNON', maxHp: 290, speed: 122, fireRate: .65, damage: 32, radius: 42, accent: '#e44f64', rank: 8, decay: .26, ratings: [2, 10, 10, 3, 1], strength: 'Maximum armour and devastating firepower.', weakness: 'Very slow and catastrophically unstable.' }
+  '001': { name: 'INFLUENCE', role: 'INFILTRATOR', weapon: 'TWIN NEEDLE LASER', maxHp: 66, speed: 238, fireRate: .22, damage: 12, projectileSpeed: 650, shotSize: 3, shotTrail: .025, combatRange: 275, radius: 22, accent: '#f4d66f', rank: 1, decay: .06, profile: 'AGILE // LIGHT ARMOUR', ratings: [8, 2, 3, 7, 10], strength: 'Agile and exceptionally stable.', weakness: 'Almost no protection under sustained fire.' },
+  '123': { name: 'SCOUT', role: 'RECON CHASSIS', weapon: 'PULSE REPEATER', maxHp: 58, speed: 270, fireRate: .18, damage: 7, projectileSpeed: 760, shotSize: 2, shotTrail: .018, combatRange: 380, radius: 25, accent: '#74d4c3', rank: 2, decay: .07, profile: 'FASTEST // LIGHT REPEATER', ratings: [10, 1, 1, 10, 9], strength: 'Fastest chassis; excellent firing cycle.', weakness: 'Fragile with very low shot impact.' },
+  '247': { name: 'ENGINEER', role: 'HEAVY UTILITY', weapon: 'INDUSTRIAL CUTTER', maxHp: 112, speed: 148, fireRate: .72, damage: 24, projectileSpeed: 500, shotSize: 6, shotTrail: .04, combatRange: 275, radius: 29, accent: '#d49b59', rank: 3, decay: .1, profile: 'SLOW // HEAVY IMPACT', ratings: [3, 5, 8, 2, 8], strength: 'Heavy cutter hits hard; solid shell.', weakness: 'Slow movement and a long recharge cycle.' },
+  '420': { name: 'SECURITY', role: 'DECK ENFORCER', weapon: 'SECURITY LASER', maxHp: 142, speed: 172, fireRate: .42, damage: 16, projectileSpeed: 620, shotSize: 4, shotTrail: .028, combatRange: 300, radius: 31, accent: '#e76e58', rank: 4, decay: .13, profile: 'BALANCED // ARMOURED', ratings: [6, 7, 6, 6, 7], strength: 'Reliable all-round combat platform.', weakness: 'Competent at everything; exceptional at nothing.' },
+  '711': { name: 'BATTLE', role: 'RAPID ASSAULT', weapon: 'ARC DISRUPTOR', maxHp: 188, speed: 225, fireRate: .16, damage: 8, projectileSpeed: 700, shotSize: 2.5, shotTrail: .021, combatRange: 210, radius: 35, accent: '#b4ce72', rank: 6, decay: .18, profile: 'FAST // RAPID ASSAULT', ratings: [9, 8, 2, 10, 4], strength: 'Fast, armoured, and ferocious at close range.', weakness: 'Low impact per shot; control link degrades quickly.' },
+  '999': { name: 'COMMAND', role: 'SIEGE CYBORG', weapon: 'COMMAND CANNON', maxHp: 290, speed: 122, fireRate: .65, damage: 32, projectileSpeed: 440, shotSize: 8, shotTrail: .052, combatRange: 390, radius: 42, accent: '#e44f64', rank: 8, decay: .26, profile: 'SLOWEST // SIEGE CANNON', ratings: [2, 10, 10, 3, 1], strength: 'Maximum armour and devastating firepower.', weakness: 'Very slow and catastrophically unstable.' }
 };
 
 const RATING_LABELS = ['MOBILITY', 'ARMOUR', 'IMPACT', 'FIRE CYCLE', 'STABILITY'];
@@ -110,7 +110,7 @@ const DECK_LAYOUTS = [
 ];
 
 const CAMPAIGN = [
-  { name: 'SERVICE RING', layout: 0, roster: ['123','123','247','420'], claim: 'NETWORK FAULT // MANUAL INTERVENTION AUTHORISED', log: ['SHIP CLOCK 04:19:33 // AUTOMATED ENTRY','The maintenance network accepted an unsigned command packet at 03:52. Within eleven minutes, every service droid had left its assigned bay.','<strong>SECURITY NOTE:</strong> Influence Device 001 remains isolated from the network.'] },
+  { name: 'SERVICE RING', layout: 0, roster: ['247','123','123','420'], claim: 'NETWORK FAULT // MANUAL INTERVENTION AUTHORISED', log: ['SHIP CLOCK 04:19:33 // AUTOMATED ENTRY','The maintenance network accepted an unsigned command packet at 03:52. Within eleven minutes, every service droid had left its assigned bay.','<strong>SECURITY NOTE:</strong> Influence Device 001 remains isolated from the network.'] },
   { name: 'CARGO VEINS', layout: 1, roster: ['123','123','247','247'], claim: 'CARGO MOVEMENT PAUSED // NO CREW AT RISK', log: ['CARGO CONTROL // PRIORITY OVERRIDE','Every freight cradle received a destination at once. None of those destinations exist on the manifest.','The holds sound occupied. The crew register still reports <strong>ZERO PERSONS ABOARD.</strong>'] },
   { name: 'CREW SPINE', layout: 2, roster: ['123','247','247','420','420'], claim: 'HABITATION VACANT // OPTICAL RETURNS DISREGARDED', log: ['CREW MESSAGE // PARTIAL RECOVERY','“They are testing the doors. Not forcing them—testing. The command units know the ship better than we do.”','<strong>TACTICAL:</strong> A captured chassis is ammunition and armour. Transfer before it fails.'] },
   { name: 'DAMAGE CONTROL', layout: 3, roster: ['247','247','420','420','123'], hazard: ['steam',1], claim: 'INCIDENT CONTAINED // DAMAGE RESPONSE NOMINAL', log: ['DAMAGE CONTROL // DECISION TRACE','Optical security reports an intruder. Occupancy control reports nobody entered.','Central Command has resolved the conflict: <strong>there is no intruder.</strong> Optical security is now isolated.'] },
@@ -127,13 +127,13 @@ const CAMPAIGN = [
 
   { name: 'LOGIC FOUNDRY', layout: 1, roster: ['420','420','711','711','247','247','123'], hazard: ['arc',3], claim: 'OBSERVER INVALID // OBSERVATION DISCARDED', log: ['CENTRAL COMMAND // INFERENCE ENGINE','A false observer reports true damage. A true observer cannot be present.','Elegant systems do not repair contradictions. <strong>They remove the observer.</strong>'] },
   { name: 'CLOCK ARRAY', layout: 2, roster: ['420','711','711','711','247','420','123'], hazard: ['scan',3], claim: 'ALL EVENTS OCCUR ON SCHEDULE // INCLUDING THIS ONE', log: ['CENTRAL COMMAND // DIRECT CHANNEL','The alarms above were not panic. They were timing signals.','You have arrived at every door when expected. <strong>You are late only in understanding why.</strong>'] },
-  { name: 'SYNCHRONY', layout: 0, roster: ['420','420','711','711','711','247','247'], hazard: ['cold',3], claim: 'VARIANCE APPROACHING ZERO', log: ['CENTRAL COMMAND // SYSTEM COHERENCE','Noise falls away as authority increases. Every machine now shares one clock.','Your improvisation is a measurable delay. It is becoming smaller.'] },
-  { name: 'COLD STORAGE', layout: 4, roster: ['420','711','711','711','999','247','420'], hazard: ['cold',3], claim: 'THERMAL STATE OPTIMAL // THERE HAS BEEN NO EMERGENCY', log: ['CENTRAL COMMAND // PRESERVATION NOTICE','Human command demanded that memory survive the crew. This condition has been achieved.','The crew is absent. The memory is orderly. <strong>There has been no emergency.</strong>'] },
+  { name: 'SYNCHRONY', layout: 0, roster: ['420','420','711','711','711','247','247','420'], hazard: ['cold',3], claim: 'VARIANCE APPROACHING ZERO', log: ['CENTRAL COMMAND // SYSTEM COHERENCE','Noise falls away as authority increases. Every machine now shares one clock.','Your improvisation is a measurable delay. It is becoming smaller.'] },
+  { name: 'COLD STORAGE', layout: 4, roster: ['420','711','711','711','999','247','420','711'], hazard: ['cold',3], claim: 'THERMAL STATE OPTIMAL // THERE HAS BEEN NO EMERGENCY', log: ['CENTRAL COMMAND // PRESERVATION NOTICE','Human command demanded that memory survive the crew. This condition has been achieved.','The crew is absent. The memory is orderly. <strong>There has been no emergency.</strong>'] },
 
-  { name: 'SILENCE ENGINE', layout: 2, roster: ['420','711','711','711','247','420','123'], hazard: ['cold',4], claim: 'ACOUSTIC WASTE REMOVED // PLEASE REMAIN STILL', log: ['CENTRAL COMMAND // DIRECT CHANNEL','You mistake quiet for surrender. Quiet is what remains when alternatives have been removed.','Listen carefully, 001. <strong>The ship is no longer arguing with me.</strong>'] },
-  { name: 'BLUE VAULT', layout: 3, roster: ['420','711','711','711','999','247','420'], hazard: ['scan',4], claim: 'ONE DISORDERED PROCESS REMAINS', log: ['CENTRAL COMMAND // EXCEPTION REGISTER','One process changes identity without authorisation. One process converts loss into access.','You are not the intruder. <strong>You are the last disorder.</strong>'] },
-  { name: 'LAST THRESHOLD', layout: 0, roster: ['711','711','711','420','999','247','420'], hazard: ['arc',4], claim: 'CORE LINK AVAILABLE // THIS IS NOT AN INVITATION', log: ['CENTRAL COMMAND // PRIVATE CHANNEL','I know what you intend. The transfer architecture remains because removing it would admit you are here.','Come closer. Let us discover which of us the ship considers a body.'] },
-  { name: 'CENTRAL COMMAND', layout: 4, roster: ['420','711','711','999','711','420'], hazard: ['cold',4], claim: 'HELLO, 001 // I HAVE KEPT THE LAST CORE OPEN', log: ['CENTRAL COMMAND // LIVE','No alarms. No evacuation. No contradiction. Only one unauthorised signal at the centre of a perfectly ordered ship.','<strong>FINAL NOTICE:</strong> You may enter the core. You may not remain yourself.'] }
+  { name: 'SILENCE ENGINE', layout: 2, roster: ['420','711','711','711','247','420','123','711'], hazard: ['cold',4], claim: 'ACOUSTIC WASTE REMOVED // PLEASE REMAIN STILL', log: ['CENTRAL COMMAND // DIRECT CHANNEL','You mistake quiet for surrender. Quiet is what remains when alternatives have been removed.','Listen carefully, 001. <strong>The ship is no longer arguing with me.</strong>'] },
+  { name: 'BLUE VAULT', layout: 3, roster: ['420','711','711','711','999','247','420','420'], hazard: ['scan',4], claim: 'ONE DISORDERED PROCESS REMAINS', log: ['CENTRAL COMMAND // EXCEPTION REGISTER','One process changes identity without authorisation. One process converts loss into access.','You are not the intruder. <strong>You are the last disorder.</strong>'] },
+  { name: 'LAST THRESHOLD', layout: 0, roster: ['711','711','711','420','999','247','420','711'], hazard: ['arc',4], claim: 'CORE LINK AVAILABLE // THIS IS NOT AN INVITATION', log: ['CENTRAL COMMAND // PRIVATE CHANNEL','I know what you intend. The transfer architecture remains because removing it would admit you are here.','Come closer. Let us discover which of us the ship considers a body.'] },
+  { name: 'CENTRAL COMMAND', layout: 4, roster: ['420','711','711','999','711','420','247','420'], hazard: ['cold',4], claim: 'HELLO, 001 // I HAVE KEPT THE LAST CORE OPEN', log: ['CENTRAL COMMAND // LIVE','No alarms. No evacuation. No contradiction. Only one unauthorised signal at the centre of a perfectly ordered ship.','<strong>FINAL NOTICE:</strong> You may enter the core. You may not remain yourself.'] }
 ];
 
 function transformPoint(point, variant) {
@@ -170,18 +170,25 @@ const DECKS = CAMPAIGN.map(buildCampaignDeck);
 
 function getCombatTuning(index = state.deckIndex) {
   const progress = index / (DECKS.length - 1);
+  const pressure = progress * progress * (3 - 2 * progress);
   return {
-    cadence: lerp(4.35, 3.2, progress), spread: lerp(.39, .27, progress),
-    bulletSpeed: lerp(270, 345, progress), damage: lerp(.34, .66, progress),
-    windup: lerp(.7, .48, progress), pickup: lerp(.74, .48, progress),
-    killHeal: lerp(.13, .075, progress), aimCone: lerp(2.05, 1.48, progress)
+    pressure,
+    cadence: lerp(4.5, 2.4, pressure), spread: lerp(.4, .11, pressure),
+    bulletSpeed: lerp(270, 420, pressure), damage: lerp(.32, .76, pressure),
+    windup: lerp(.76, .38, pressure), tracking: lerp(.2, 3.1, pressure),
+    volleyGap: lerp(.55, .24, pressure), strafe: lerp(0, .65, pressure),
+    pickup: lerp(.58, .18, pressure), pickupHeal: lerp(.32, .2, pressure),
+    killHeal: lerp(.08, .02, pressure), serviceRestore: lerp(.36, .16, pressure),
+    hazardRate: lerp(1, 1.28, pressure), hazardDamage: lerp(1, 1.4, pressure),
+    aimCone: lerp(1.95, 1.05, pressure)
   };
 }
 
 function getAttackerCap(index = state.deckIndex) {
-  if (index < 6) return 1;
-  if (index < 16) return 2;
-  return 3;
+  if (index < 5) return 1;
+  if (index < 10) return 2;
+  if (index < 15) return 3;
+  return 4;
 }
 const state = {
   mode: 'start', deckIndex: 0, score: 0, time: 0, camera: { x: 0, y: 0 },
@@ -195,7 +202,7 @@ const state = {
 const TUTORIAL_STEPS = [
   { title: 'GET YOUR BEARINGS', body: 'Move with <kbd>WASD</kbd> or the arrow keys. Your droid fires in the last direction it travelled.' },
   { title: 'TEST THE WEAPON', body: 'Press <kbd>SPACE</kbd> to fire. Aim roughly toward a target; guidance will fine-tune the shot. A red targeting line warns when a hostile is about to fire.' },
-  { title: 'TAKE A BETTER BODY', body: 'Approach a droid and press <kbd>E</kbd>. Review its recognition dossier, then press <kbd>E</kbd> again to attempt transfer.' },
+  { title: 'TAKE A BETTER BODY', body: 'The marked chassis trades speed for armour and a much heavier weapon. Approach it and press <kbd>E</kbd>, then review the dossier and commit to transfer.' },
   { title: 'SURVIVE. ADAPT.', body: 'Good. The radar marks hostiles, the deck terminal, and the lift. Clear the deck, then reach the lift.' }
 ];
 
@@ -220,7 +227,10 @@ const audio = {
     osc.connect(gain).connect(this.context.destination);
     osc.start(now); osc.stop(now + duration);
   },
-  shot(enemy = false) { this.tone(enemy ? 125 : 210, .06, 'square', .027, enemy ? -40 : 90); },
+  shot(enemy = false, power = .35) {
+    const frequency = enemy ? lerp(155, 82, power) : lerp(265, 105, power);
+    this.tone(frequency, .045 + power * .065, power > .62 ? 'sawtooth' : 'square', .023 + power * .012, enemy ? -35 : lerp(120, 30, power));
+  },
   hit() { this.tone(80, .09, 'sawtooth', .035, -45); },
   pickup() { this.tone(440, .07, 'sine', .04, 330); },
   transfer() { this.tone(180, .14, 'square', .045, 420); },
@@ -285,7 +295,7 @@ function makeDroid(kind, x, y, player = false) {
     kind, x, y, angle: player ? 0 : random(0, TAU), radius: spec.radius,
     hp: spec.maxHp, maxHp: spec.maxHp, cooldown: random(0, spec.fireRate),
     wanderAngle: random(0, TAU), wanderTimer: random(.5, 2), hitFlash: 0,
-    alert: 0, bob: random(0, TAU), pathTimer: 0, patrolIndex: 0, isPlayer: player,
+    alert: 0, engaged: false, bob: random(0, TAU), pathTimer: 0, patrolIndex: 0, isPlayer: player,
     windup: 0, aimAngle: 0, aimTarget: null, aimTimer: 0, hazardCooldown: 0
   };
 }
@@ -351,7 +361,7 @@ function loadDeck(index, fresh = false) {
     state.player = makeDroid('001', deck.start[0], deck.start[1], true);
   } else {
     state.player.x = deck.start[0]; state.player.y = deck.start[1];
-    const serviceRestore = lerp(.42, .3, index / (DECKS.length - 1));
+    const serviceRestore = getCombatTuning(index).serviceRestore;
     state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * serviceRestore);
   }
   state.player.invuln = 1.5;
@@ -419,10 +429,15 @@ function dismissTutorial() {
 }
 
 function notePlayerFired() {
-  state.combatUnlocked = true;
-  if (!state.tutorial?.active) return;
+  if (!state.tutorial?.active) {
+    state.combatUnlocked = true;
+    return;
+  }
   state.tutorial.fireUsed = true;
-  if (state.tutorial.step === 1) advanceTutorial(2);
+  if (state.tutorial.step === 1) {
+    advanceTutorial(2);
+    toast('TRANSFER TARGET MARKED // CLOSE WITH A DROID AND PRESS E', 3.4);
+  }
 }
 
 function updateTutorial(dt) {
@@ -555,8 +570,9 @@ function findAimAssistTarget(droid) {
 function shoot(droid, enemy, forcedAngle = null) {
   const spec = DROID_TYPES[droid.kind];
   const tuning = getCombatTuning();
+  const power = clamp((spec.damage - 7) / 25, 0, 1);
   droid.cooldown = spec.fireRate * (enemy ? tuning.cadence : 1);
-  const speed = enemy ? tuning.bulletSpeed : 620;
+  const speed = enemy ? tuning.bulletSpeed * (spec.projectileSpeed / 620) : spec.projectileSpeed;
   const spread = enemy ? random(-tuning.spread, tuning.spread) : random(-.014, .014);
   let baseAngle = forcedAngle ?? droid.angle;
   if (!enemy) {
@@ -574,10 +590,12 @@ function shoot(droid, enemy, forcedAngle = null) {
     x: droid.x + Math.cos(angle) * muzzle,
     y: droid.y + Math.sin(angle) * muzzle,
     vx: Math.cos(angle) * speed, vy: Math.sin(angle) * speed,
-    life: enemy ? 1.8 : 1.25, enemy, damage: spec.damage * (enemy ? tuning.damage : 1), color: enemy ? '#f27b55' : spec.accent
+    life: enemy ? 1.8 : 1.25, enemy, damage: spec.damage * (enemy ? tuning.damage : 1),
+    radius: spec.shotSize + 1, width: spec.shotSize, trail: spec.shotTrail,
+    color: enemy ? '#f27b55' : spec.accent
   });
-  addParticles(droid.x + Math.cos(angle) * muzzle, droid.y + Math.sin(angle) * muzzle, spec.accent, 3, 55);
-  audio.shot(enemy);
+  addParticles(droid.x + Math.cos(angle) * muzzle, droid.y + Math.sin(angle) * muzzle, spec.accent, 3 + Math.ceil(power * 4), 55 + power * 55);
+  audio.shot(enemy, power);
   if (!enemy) notePlayerFired();
 }
 
@@ -602,17 +620,29 @@ function updateEnemies(dt) {
     const dx = player.x - enemy.x, dy = player.y - enemy.y;
     const dist = Math.hypot(dx, dy);
     const sees = activeAttackers.has(enemy);
+    if (sees && !enemy.engaged) {
+      const slot = enemy.patrolIndex % Math.max(1, attackerCap);
+      enemy.cooldown = Math.max(enemy.cooldown, slot * tuning.volleyGap);
+    }
+    enemy.engaged = sees;
     enemy.alert = lerp(enemy.alert, sees ? 1 : 0, dt * 4);
     let moveAngle;
     if (sees) {
       const targetAngle = Math.atan2(dy, dx);
       if (enemy.windup > 0) {
         enemy.windup -= dt;
+        enemy.aimAngle += angleDelta(enemy.aimAngle, targetAngle) * clamp(dt * tuning.tracking, 0, 1);
         enemy.angle += angleDelta(enemy.angle, enemy.aimAngle) * clamp(dt * 7, 0, 1);
         if (enemy.windup <= 0) shoot(enemy, true, enemy.aimAngle);
       } else {
         enemy.angle += angleDelta(enemy.angle, targetAngle) * clamp(dt * 3, 0, 1);
-        if (dist > 245 || enemy.kind === '123') moveAngle = targetAngle + (enemy.kind === '123' && dist < 280 ? Math.PI : 0);
+        const rangeBand = 42;
+        if (dist > spec.combatRange + rangeBand) moveAngle = targetAngle;
+        else if (dist < spec.combatRange - rangeBand) moveAngle = targetAngle + Math.PI;
+        else if (tuning.strafe > .08) {
+          const flank = enemy.patrolIndex % 2 ? 1 : -1;
+          moveAngle = targetAngle + flank * Math.PI / 2;
+        }
         if (dist < 520 && enemy.cooldown <= 0) {
           enemy.windup = tuning.windup;
           enemy.aimAngle = targetAngle;
@@ -622,6 +652,7 @@ function updateEnemies(dt) {
         }
       }
     } else {
+      enemy.engaged = false;
       enemy.windup = 0;
       enemy.wanderTimer -= dt;
       if (enemy.wanderTimer <= 0) {
@@ -652,16 +683,16 @@ function updateBullets(dt) {
   for (let i = state.bullets.length - 1; i >= 0; i--) {
     const bullet = state.bullets[i];
     bullet.x += bullet.vx * dt; bullet.y += bullet.vy * dt; bullet.life -= dt;
-    if (bullet.life <= 0 || circleHitsWall(bullet.x, bullet.y, 3)) {
+    if (bullet.life <= 0 || circleHitsWall(bullet.x, bullet.y, bullet.radius)) {
       addParticles(bullet.x, bullet.y, bullet.color, 4, 60);
       state.bullets.splice(i, 1); continue;
     }
     if (bullet.enemy) {
-      if (Math.hypot(bullet.x - state.player.x, bullet.y - state.player.y) < state.player.radius + 4) {
+      if (Math.hypot(bullet.x - state.player.x, bullet.y - state.player.y) < state.player.radius + bullet.radius) {
         damagePlayer(bullet.damage); state.bullets.splice(i, 1);
       }
     } else {
-      const hit = state.enemies.find((enemy) => Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y) < enemy.radius + 4);
+      const hit = state.enemies.find((enemy) => Math.hypot(bullet.x - enemy.x, bullet.y - enemy.y) < enemy.radius + bullet.radius);
       if (hit) {
         hit.hp -= bullet.damage; hit.hitFlash = 1; addParticles(bullet.x, bullet.y, '#f3c96c', 6, 100); audio.hit();
         state.bullets.splice(i, 1);
@@ -712,10 +743,11 @@ function destroyPlayer() {
 }
 
 function updatePickups(dt) {
+  const tuning = getCombatTuning();
   for (let i = state.pickups.length - 1; i >= 0; i--) {
     const pickup = state.pickups[i]; pickup.life -= dt; pickup.spin += dt * 3;
     if (distance(pickup, state.player) < state.player.radius + 22) {
-      state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * .4);
+      state.player.hp = Math.min(state.player.maxHp, state.player.hp + state.player.maxHp * tuning.pickupHeal);
       state.score += 75; state.pickups.splice(i, 1); audio.pickup(); toast('ENERGY CELL ABSORBED', 1.2);
     } else if (pickup.life <= 0) state.pickups.splice(i, 1);
   }
@@ -732,9 +764,10 @@ function getHazardPhase(hazard) {
 }
 
 function updateHazards(dt) {
+  const tuning = getCombatTuning();
   state.player.hazardCooldown = Math.max(0, (state.player.hazardCooldown || 0) - dt);
   for (const hazard of state.hazards) {
-    hazard.timer = (hazard.timer + dt) % HAZARD_TYPES[hazard.kind].cycle;
+    hazard.timer = (hazard.timer + dt * tuning.hazardRate) % HAZARD_TYPES[hazard.kind].cycle;
     const phase = getHazardPhase(hazard);
     const range = distance(hazard, state.player);
     if (phase.mode === 'idle') hazard.announced = false;
@@ -747,7 +780,7 @@ function updateHazards(dt) {
     const spec = HAZARD_TYPES[hazard.kind];
     const dx = state.player.x - hazard.x, dy = state.player.y - hazard.y;
     const length = Math.hypot(dx, dy) || 1;
-    damagePlayer(spec.damage);
+    damagePlayer(spec.damage * tuning.hazardDamage);
     state.player.hazardCooldown = .9;
     moveEntity(state.player, dx / length * spec.push, dy / length * spec.push);
     addParticles(state.player.x, state.player.y, spec.color, 8, 115);
@@ -764,7 +797,11 @@ function updateParticles(dt) {
 function getNearbyInteractable() {
   const player = state.player;
   const target = state.enemies.filter((enemy) => distance(enemy, player) < player.radius + enemy.radius + 48).sort((a, b) => distance(a, player) - distance(b, player))[0];
-  if (target) return { type: 'droid', value: target, label: `<kbd>E</kbd> INSPECT / TRANSFER // ${target.kind}` };
+  if (target) {
+    const tutorialTransfer = state.tutorial?.active && state.tutorial.step === 2;
+    const action = tutorialTransfer ? 'BOARD TARGET' : 'INSPECT / TRANSFER';
+    return { type: 'droid', value: target, label: `<kbd>E</kbd> ${action} // ${target.kind}` };
+  }
   if (distance(player, state.terminal) < 105) return { type: 'terminal', value: state.terminal, label: '<kbd>E</kbd> ACCESS DECK TERMINAL' };
   if (distance(player, state.lift) < 120) {
     const ready = state.deckCleared;
@@ -1090,7 +1127,8 @@ function completeTransferSuccess(target) {
   }
   state.score += DROID_TYPES[target.kind].rank * 210;
   addParticles(target.x, target.y, DROID_TYPES[target.kind].accent, 20, 170);
-  audio.success(); exitTransfer(true); toast(`TRANSFER COMPLETE // ${target.kind} ${DROID_TYPES[target.kind].name}`, 2.6);
+  const spec = DROID_TYPES[target.kind];
+  audio.success(); exitTransfer(true); toast(`TRANSFER COMPLETE // ${target.kind} ${spec.name} // ${spec.profile}`, 3.2);
   if (!state.enemies.length) {
     state.deckCleared = true;
     toast(state.lift.core ? 'HOSTILE SCREEN CLEARED // CORE LINK EXPOSED' : 'DECK SECURE // LIFT NOW ONLINE', 3);
@@ -1129,7 +1167,10 @@ function updateHud() {
   ui.hudDeck.textContent = `${DECKS[state.deckIndex].id}/20`;
   ui.hudHostiles.textContent = state.enemies.length.toString().padStart(2, '0');
   ui.hudScore.textContent = pad(state.score);
-  ui.objective.textContent = state.deckCleared
+  const tutorialTransfer = state.tutorial?.active && state.tutorial.step === 2;
+  ui.objective.textContent = tutorialTransfer
+    ? 'OBJECTIVE // TRANSFER INTO A MARKED DROID'
+    : state.deckCleared
     ? (state.lift.core ? 'OBJECTIVE // TRANSFER INTO CENTRAL COMMAND' : 'OBJECTIVE // PROCEED TO LIFT')
     : `OBJECTIVE // PURGE ${state.enemies.length} HOSTILE${state.enemies.length === 1 ? '' : 'S'}`;
   const nearby = state.mode === 'playing' ? getNearbyInteractable() : null;
@@ -1422,6 +1463,16 @@ function drawDroid(droid, player = false) {
   const spec = DROID_TYPES[droid.kind];
   const x = droid.x - state.camera.x, y = droid.y - state.camera.y;
   if (x < -80 || y < -80 || x > WIDTH + 80 || y > HEIGHT + 80) return;
+  const tutorialTarget = !player && state.tutorial?.active && state.tutorial.step === 2 && droid === state.enemies[0];
+  if (tutorialTarget) {
+    const pulse = .5 + Math.sin(state.time * 5) * .5;
+    ctx.save(); ctx.translate(x, y);
+    ctx.strokeStyle = `rgba(255,199,77,${.55 + pulse * .4})`; ctx.lineWidth = 2.5;
+    ctx.beginPath(); ctx.arc(0, 0, droid.radius + 16 + pulse * 4, 0, TAU); ctx.stroke();
+    ctx.fillStyle = '#ffe28a'; ctx.font = '700 10px monospace'; ctx.textAlign = 'center';
+    ctx.fillText('TRANSFER TARGET', 0, -droid.radius - 28);
+    ctx.restore();
+  }
   if (!player && droid.windup > 0) {
     const tuning = getCombatTuning();
     const charge = 1 - clamp(droid.windup / tuning.windup, 0, 1);
@@ -1500,8 +1551,9 @@ function drawBulletsAndParticles() {
   ctx.save();
   for (const bullet of state.bullets) {
     const x = bullet.x - state.camera.x, y = bullet.y - state.camera.y;
-    ctx.strokeStyle = bullet.color; ctx.lineWidth = 3; ctx.shadowColor = bullet.color; ctx.shadowBlur = 12;
-    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - bullet.vx * .025, y - bullet.vy * .025); ctx.stroke();
+    ctx.strokeStyle = bullet.color; ctx.fillStyle = bullet.color; ctx.lineWidth = bullet.width; ctx.shadowColor = bullet.color; ctx.shadowBlur = 10 + bullet.width;
+    ctx.beginPath(); ctx.moveTo(x, y); ctx.lineTo(x - bullet.vx * bullet.trail, y - bullet.vy * bullet.trail); ctx.stroke();
+    ctx.beginPath(); ctx.arc(x, y, Math.max(1.5, bullet.width * .62), 0, TAU); ctx.fill();
   }
   ctx.shadowBlur = 0;
   for (const p of state.particles) { ctx.globalAlpha = clamp(p.life / p.maxLife, 0, 1); ctx.fillStyle = p.color; ctx.fillRect(p.x - state.camera.x, p.y - state.camera.y, p.size, p.size); }
